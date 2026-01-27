@@ -194,7 +194,7 @@ async function onGenerate() {
     }
   } else {
     if (!p) {
-      errorText.value = "Введите prompt.";
+      errorText.value = "Введите запрос.";
       return;
     }
   }
@@ -296,7 +296,7 @@ onBeforeUnmount(() => {
                 Карточка товара
               </button>
             </div>
-            <div class="hint">ТипЗадачи</div>
+            <div class="hint">Тип Задачи</div>
           </div>
 
 
