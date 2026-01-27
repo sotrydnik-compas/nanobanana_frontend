@@ -84,14 +84,20 @@ function addLocalFiles(fileList) {
   const files = Array.from(fileList || []);
   if (!files.length) return;
 
+  const maxSizeMB = 10; // ограничение в МБ
   const available = maxFiles - localFiles.value.length;
   const sliced = files.slice(0, Math.max(0, available));
 
   for (const f of sliced) {
+    if (f.size > maxSizeMB * 1024 * 1024) { // проверка размера
+      errorText.value = `Файл "${f.name}" слишком большой. Максимум ${maxSizeMB} МБ.`;
+      continue;
+    }
     const previewUrl = URL.createObjectURL(f);
     localFiles.value.push({ file: f, name: f.name, size: f.size, previewUrl });
   }
 }
+
 
 function removeLocalFile(idx) {
   const item = localFiles.value[idx];
@@ -932,4 +938,44 @@ onBeforeUnmount(() => {
   overflow: auto;
   font-size: 12px;
 }
+
+/* Мобильные устройства до 768px */
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 10px;
+  }
+
+  .left {
+    width: 100%;
+    min-height: auto;
+    border-radius: 12px;
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .right {
+    width: 100%;
+    min-height: auto;
+    border-radius: 12px;
+  }
+
+  .previews {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .seg2, .seg3 {
+    flex-wrap: wrap;
+  }
+
+  .drop-inner {
+    padding: 12px 6px;
+  }
+
+  .overlay-sub, .empty-sub {
+    max-width: 100%;
+  }
+}
+
 </style>
