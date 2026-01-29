@@ -84,7 +84,7 @@ function addLocalFiles(fileList) {
   const files = Array.from(fileList || []);
   if (!files.length) return;
 
-  const maxSizeMB = 10; // ограничение в МБ
+  const maxSizeMB = 50; // ограничение в МБ
   const available = maxFiles - localFiles.value.length;
   const sliced = files.slice(0, Math.max(0, available));
 
