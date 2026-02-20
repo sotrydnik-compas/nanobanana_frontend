@@ -5,7 +5,6 @@ import { auth } from '../stores/auth'
 import { aiApi } from '../api/ai'
 import { safeJsonParse } from '../utils/json'
 
-import TopBar from '../components/common/TopBar.vue'
 import ChatList from '../components/chat/ChatList.vue'
 import ChatMessages from '../components/chat/ChatMessages.vue'
 import Composer from '../components/chat/Composer.vue'
@@ -261,11 +260,6 @@ async function onSend(userPrompt) {
   }
 }
 
-async function onLogout() {
-  await auth.logout()
-  router.replace('/login')
-}
-
 onMounted(async () => {
   await loadChats()
 })
@@ -277,7 +271,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="shell" :class="{ embed: isEmbed }">
-    <TopBar v-if="!isEmbed" :user="auth.state.user" @logout="onLogout" />
 
     <div class="layout">
       <aside class="left">
@@ -325,31 +318,50 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.shell { min-height: 100vh; }
-.layout {
+.shell { height: 100%; }
+
+.layout{
   display: flex;
   gap: 12px;
   padding: 12px;
+  height: 100%;
+  min-height: 0;
 }
-.left { width: 300px; }
-.center { flex: 1; min-width: 0; }
-.right { width: 360px; }
 
-.center-inner { display: flex; flex-direction: column; gap: 10px; height: calc(100vh - 80px); }
-.card { flex: 1; min-height: 0; border-radius: 16px; background: #fff; border: 1px solid #e5e7eb; overflow: hidden; }
+.left { width: 300px; flex: 0 0 300px; min-height: 0; }
+.center { flex: 1; min-width: 0; min-height: 0; display: flex; }
+.right { width: 360px; flex: 0 0 360px; min-height: 0; }
+
+.center-inner{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.card{
+  flex: 1;
+  min-height: 0;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
 
 .alert { padding: 10px 12px; border-radius: 14px; border: 1px solid; font-size: 13px; }
-.alert.error { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
-.alert.ok { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+.alert.error { background: var(--dangerBg); border-color: var(--dangerBorder); color: var(--dangerText); }
+.alert.ok { background: var(--successBg); border-color: var(--successBorder); color: var(--successText); }
 
 .embed .layout { height: 100vh; padding: 0; gap: 0; }
-.embed .left { border-right: 1px solid #e5e7eb; height: 100vh; }
+.embed .left { border-right: 1px solid var(--border); height: 100vh; }
 .embed .center-inner { height: 100vh; }
 .embed .right { display: none; }
 
 @media (max-width: 980px) {
-  .layout { flex-direction: column; }
-  .left, .right { width: 100%; }
+  .layout { flex-direction: column; height: auto; }
+  .left, .right { width: 100%; flex: 0 0 auto; }
+  .center { display: block; }
   .center-inner { height: auto; }
 }
 </style>

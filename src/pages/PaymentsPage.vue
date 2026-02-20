@@ -1,11 +1,9 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { billingApi } from '../api/billing'
 import { auth } from '../stores/auth'
 
 auth.init()
-const router = useRouter()
 
 const busy = ref(false)
 const errorText = ref('')
@@ -113,9 +111,6 @@ function startPolling() {
   }, 30000)
 }
 
-async function goAccount() {
-  await router.push({ name: 'account' })
-}
 
 onMounted(async () => {
   await loadAll()
@@ -138,7 +133,6 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="top-actions">
-        <button class="btn" type="button" @click="goAccount">← Аккаунт</button>
         <button class="btn" type="button" @click="loadAll" :disabled="busy">Обновить</button>
       </div>
     </div>
@@ -208,8 +202,7 @@ onBeforeUnmount(() => {
   max-width: 980px;
   margin: 0 auto;
   padding: 18px;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  color: #111827;
+  color: var(--text);
 }
 
 .top {
@@ -220,22 +213,22 @@ onBeforeUnmount(() => {
   margin-bottom: 14px;
 }
 .title { font-size: 22px; font-weight: 900; line-height: 1.2; }
-.sub { margin-top: 3px; color: #6b7280; font-size: 12px; }
+.sub { margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .top-actions { display: flex; gap: 8px; }
 
 .card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 14px;
   margin-bottom: 12px;
 }
 .card-title { font-weight: 900; margin-bottom: 10px; }
-.muted { color: #6b7280; font-size: 12px; margin-top: 8px; }
+.muted { color: var(--muted); font-size: 12px; margin-top: 8px; font-weight: 700; }
 
 .balance { display: flex; align-items: baseline; gap: 10px; }
 .balance-num { font-size: 34px; font-weight: 900; }
-.balance-label { color: #6b7280; font-size: 12px; font-weight: 800; }
+.balance-label { color: var(--muted); font-size: 12px; font-weight: 800; }
 
 .plans {
   display: grid;
@@ -243,16 +236,18 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 .plan {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 12px;
-  background: #fafafa;
+  background: var(--card2);
 }
 .plan-title { font-weight: 900; margin-bottom: 8px; }
 .plan-meta { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+
 .pill {
-  border: 1px solid #e5e7eb;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
   border-radius: 999px;
   padding: 6px 10px;
   font-size: 12px;
@@ -265,16 +260,16 @@ onBeforeUnmount(() => {
   grid-template-columns: 2fr 1fr 1fr 1.3fr;
   gap: 10px;
   padding: 10px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--card);
   align-items: center;
 }
 .tr.head {
-  background: #f4f4f5;
+  background: var(--theadBg);
   font-weight: 900;
   font-size: 12px;
-  color: #374151;
+  color: var(--theadText);
 }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; }
 
@@ -282,19 +277,21 @@ onBeforeUnmount(() => {
   display: inline-block;
   padding: 4px 8px;
   border-radius: 999px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   font-size: 12px;
   font-weight: 900;
 }
-.status.pending { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
-.status.succeeded { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
-.status.failed { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
-.status.canceled { background: #f4f4f5; border-color: #e5e7eb; color: #374151; }
-.mini { font-size: 12px; color: #6b7280; font-weight: 700; }
+.status.pending { background: var(--statusPendingBg); border-color: var(--statusPendingBorder); color: var(--statusPendingText); }
+.status.succeeded { background: var(--statusSucceededBg); border-color: var(--statusSucceededBorder); color: var(--statusSucceededText); }
+.status.failed { background: var(--statusFailedBg); border-color: var(--statusFailedBorder); color: var(--statusFailedText); }
+.status.canceled { background: var(--statusCanceledBg); border-color: var(--statusCanceledBorder); color: var(--statusCanceledText); }
+
+.mini { font-size: 12px; color: var(--muted); font-weight: 700; }
 
 .btn {
-  border: 1px solid #e5e7eb;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
   border-radius: 12px;
   padding: 10px 12px;
   cursor: pointer;
@@ -302,7 +299,7 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 .btn:disabled { opacity: .6; cursor: not-allowed; }
-.btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: var(--primaryText); }
 
 .alert {
   margin-top: 10px;
@@ -310,9 +307,10 @@ onBeforeUnmount(() => {
   border-radius: 14px;
   border: 1px solid;
   font-size: 13px;
+  font-weight: 800;
 }
-.alert.error { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
-.alert.ok { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+.alert.error { background: var(--dangerBg); border-color: var(--dangerBorder); color: var(--dangerText); }
+.alert.ok { background: var(--successBg); border-color: var(--successBorder); color: var(--successText); }
 
 @media (max-width: 900px) {
   .plans { grid-template-columns: 1fr; }

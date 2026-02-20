@@ -17,12 +17,8 @@ export const billingApi = {
   myBalance: () =>
     apiJson(`${endpoints.billing.base}${endpoints.billing.myBalance}`),
 
-  myPayments: (limit = 50, offset = 0) => {
-    const url = new URL(`${endpoints.billing.base}${endpoints.billing.myPayments}`, window.location.origin)
-    url.searchParams.set('limit', String(limit))
-    url.searchParams.set('offset', String(offset))
-    return apiJson(url.pathname + url.search)
-  },
+  myPayments: (limit = 50, offset = 0) =>
+    apiJson(`${endpoints.billing.base}${endpoints.billing.myPayments}?limit=${limit}&offset=${offset}`),
 
   createPayment: (plan_id) =>
     apiJson(`${endpoints.billing.base}${endpoints.billing.createPayment}`, {

@@ -1,15 +1,101 @@
+:root{
+  --bg: #f3f4f6;
+  --text: #111827;
+  --muted: #6b7280;
+
+  --border: #e5e7eb;
+  --card: #ffffff;
+  --card2: #fafafa;
+  --card2Hover: #e4e4e7;
+
+  --primary: #2563eb;
+  --primaryText: #ffffff;
+
+  --dangerBg: #fef2f2;
+  --dangerBorder: #fecaca;
+  --dangerText: #7f1d1d;
+
+  --successBg: #ecfdf5;
+  --successBorder: #a7f3d0;
+  --successText: #065f46;
+
+  --statusPendingBg: #eff6ff;
+  --statusPendingBorder: #bfdbfe;
+  --statusPendingText: #1e3a8a;
+
+  --statusSucceededBg: #ecfdf5;
+  --statusSucceededBorder: #a7f3d0;
+  --statusSucceededText: #065f46;
+
+  --statusFailedBg: #fef2f2;
+  --statusFailedBorder: #fecaca;
+  --statusFailedText: #7f1d1d;
+
+  --statusCanceledBg: #f4f4f5;
+  --statusCanceledBorder: #e5e7eb;
+  --statusCanceledText: #374151;
+
+  --theadBg: #f4f4f5;
+  --theadText: #374151;
+}
+
+@media (prefers-color-scheme: dark){
+  :root[data-theme="dark"]{
+  --bg: #0b0f1a;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+
+  --border: #1f2937;
+  --card: #0f172a;
+  --card2: #111827;
+  --card2Hover: #0b1220;
+
+  --primary: #3b82f6;
+  --primaryText: #0b1020;
+
+  --dangerBg: #2a0f14;
+  --dangerBorder: #7f1d1d;
+  --dangerText: #fecaca;
+
+  --successBg: #062a1a;
+  --successBorder: #065f46;
+  --successText: #a7f3d0;
+
+  --statusPendingBg: #0b1e3a;
+  --statusPendingBorder: #1d4ed8;
+  --statusPendingText: #bfdbfe;
+
+  --statusSucceededBg: #062a1a;
+  --statusSucceededBorder: #065f46;
+  --statusSucceededText: #a7f3d0;
+
+  --statusFailedBg: #2a0f14;
+  --statusFailedBorder: #7f1d1d;
+  --statusFailedText: #fecaca;
+
+  --statusCanceledBg: #111827;
+  --statusCanceledBorder: #1f2937;
+  --statusCanceledText: #9ca3af;
+
+  --theadBg: #111827;
+  --theadText: #e5e7eb;
+  }
+}
+
 :root {
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  background: #f3f4f6;
-  color: #111827;
+  background: var(--bg);
+  color: var(--text);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
 }
 
-a { color: #2563eb; text-decoration: none; }
+a { color: var(--primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 .auth-shell {
@@ -22,8 +108,8 @@ a:hover { text-decoration: underline; }
 .auth-card {
   width: 420px;
   max-width: 100%;
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 18px;
   padding: 16px;
   display: flex;
@@ -32,37 +118,50 @@ a:hover { text-decoration: underline; }
 }
 
 .auth-title { font-weight: 900; font-size: 18px; margin-bottom: 6px; }
-.lbl { font-size: 12px; font-weight: 900; color: #374151; }
+.lbl { font-size: 12px; font-weight: 900; color: var(--theadText); }
+
 .inp {
-  border: 1px solid #e5e7eb;
-  background: #fafafa;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--text);
   border-radius: 12px;
   padding: 10px;
   font-size: 13px;
 }
+
 .btn {
-  border: 1px solid #e5e7eb;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
   border-radius: 12px;
   padding: 10px 12px;
   cursor: pointer;
   font-weight: 900;
   font-size: 12px;
 }
-.btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+.btn.primary { background: var(--primary); border-color: var(--primary); color: var(--primaryText); }
 .btn:disabled { opacity: .6; cursor: not-allowed; }
 
 .alert {
   padding: 10px 12px;
   border-radius: 14px;
-  border: 1px solid #fecaca;
-  background: #fef2f2;
-  color: #7f1d1d;
+  border: 1px solid var(--dangerBorder);
+  background: var(--dangerBg);
+  color: var(--dangerText);
   font-size: 12px;
 }
+
 .alert.ok {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
-  color: #065f46;
+  border-color: var(--successBorder);
+  background: var(--successBg);
+  color: var(--successText);
 }
-.auth-links { display: flex; gap: 12px; justify-content: space-between; margin-top: 6px; font-size: 12px; }
+
+.auth-links {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 12px;
+}

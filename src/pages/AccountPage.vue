@@ -139,9 +139,6 @@ async function logoutAllDevices() {
   }
 }
 
-async function goChat() {
-  await router.push({ name: 'chat' })
-}
 </script>
 
 <template>
@@ -153,7 +150,6 @@ async function goChat() {
       </div>
 
       <div class="top-actions">
-        <button class="btn" type="button" @click="goChat">← В чат</button>
         <button class="btn" type="button" @click="refreshMe" :disabled="busy">Обновить</button>
       </div>
     </div>
@@ -246,9 +242,9 @@ async function goChat() {
   max-width: 860px;
   margin: 0 auto;
   padding: 18px;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  color: #111827;
+  color: var(--text);
 }
+
 .top {
   display: flex;
   justify-content: space-between;
@@ -257,41 +253,45 @@ async function goChat() {
   margin-bottom: 14px;
 }
 .title { font-size: 22px; font-weight: 900; line-height: 1.2; }
-.sub { margin-top: 3px; color: #6b7280; font-size: 12px; }
+.sub { margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .top-actions { display: flex; gap: 8px; }
 
 .card {
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 16px;
   padding: 14px;
   margin-bottom: 12px;
 }
 .card-title { font-weight: 900; margin-bottom: 10px; }
+
 .grid { display: grid; gap: 8px; }
 .row { display: grid; grid-template-columns: 80px 1fr; gap: 10px; align-items: center; }
-.k { color: #6b7280; font-size: 12px; font-weight: 700; }
+.k { color: var(--muted); font-size: 12px; font-weight: 700; }
 .v { font-size: 13px; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; }
-.muted { color: #6b7280; font-size: 12px; margin-bottom: 10px; }
+.muted { color: var(--muted); font-size: 12px; margin-bottom: 10px; font-weight: 700; }
 
 .field { margin-bottom: 10px; }
-.label { display: block; font-size: 12px; font-weight: 800; color: #374151; margin-bottom: 6px; }
+.label { display: block; font-size: 12px; font-weight: 800; color: var(--theadText); margin-bottom: 6px; }
+
 .input {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid #e5e7eb;
-  background: #f4f4f5;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--text);
   border-radius: 12px;
   padding: 10px 12px;
   font-size: 14px;
   outline: none;
 }
-.input:hover { background: #e4e4e7; }
+.input:hover { background: var(--card2Hover); }
 
 .btn {
-  border: 1px solid #e5e7eb;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
   border-radius: 12px;
   padding: 10px 12px;
   cursor: pointer;
@@ -299,12 +299,13 @@ async function goChat() {
   font-size: 13px;
 }
 .btn:disabled { opacity: .6; cursor: not-allowed; }
-.btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: var(--primaryText); }
+
 .actions { display: flex; gap: 10px; }
 .actions .btn { flex: 1; }
 
-.card.danger { border-color: #fecaca; background: #fff; }
-.btn.danger { background: #fee2e2; border-color: #fecaca; color: #7f1d1d; }
+.card.danger { border-color: var(--dangerBorder); background: var(--card); }
+.btn.danger { background: var(--dangerBg); border-color: var(--dangerBorder); color: var(--dangerText); }
 
 .alert {
   margin-top: 10px;
@@ -312,7 +313,8 @@ async function goChat() {
   border-radius: 14px;
   border: 1px solid;
   font-size: 13px;
+  font-weight: 800;
 }
-.alert.error { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
-.alert.ok { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+.alert.error { background: var(--dangerBg); border-color: var(--dangerBorder); color: var(--dangerText); }
+.alert.ok { background: var(--successBg); border-color: var(--successBorder); color: var(--successText); }
 </style>

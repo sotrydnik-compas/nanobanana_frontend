@@ -33,6 +33,8 @@ export const endpoints = {
     generate: '/api/v1/ai/generate-pro',
     task: (id) => `/api/v1/ai/tasks/${encodeURIComponent(id)}`,
 
+    samples: '/api/v1/ai/samples',
+
     chats: '/api/v1/ai/chats',
     chat: (id) => `/api/v1/ai/chats/${encodeURIComponent(id)}`,
     messages: (id) => `/api/v1/ai/chats/${encodeURIComponent(id)}/messages`,

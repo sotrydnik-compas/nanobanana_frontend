@@ -28,11 +28,9 @@ defineProps({
 </template>
 
 <style scoped>
-.wrap { height: 100%; overflow: auto; padding: 12px; background: #fafafa; }
-.msgs { display: flex; flex-direction: column; gap: 10px; }
-.muted { font-size: 12px; color: #6b7280; }
-.pending { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px dashed #d1d5db; border-radius: 14px; background: #fff; }
-.spinner { width: 18px; height: 18px; border-radius: 999px; border: 3px solid #e5e7eb; border-top-color: #3b82f6; animation: spin 0.9s linear infinite; }
-@keyframes spin { to { transform: rotate(360deg); } }
-.t { font-size: 12px; font-weight: 800; color: #374151; }
+.wrap { height: 100%; overflow: auto; padding: 12px; background: var(--card2); }
+.muted { font-size: 12px; color: var(--muted); }
+.pending { display:flex; align-items:center; gap:10px; padding:10px; border:1px dashed var(--border); border-radius:14px; background: var(--card); }
+.spinner { width:18px; height:18px; border-radius:999px; border:3px solid var(--border); border-top-color: var(--primary); animation: spin .9s linear infinite; }
+.t { font-size: 12px; font-weight: 800; color: var(--theadText); }
 </style>
