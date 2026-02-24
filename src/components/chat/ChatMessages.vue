@@ -28,7 +28,8 @@ defineProps({
 </template>
 
 <style scoped>
-.wrap { height: 100%; overflow: auto; padding: 12px; background: var(--card2); }
+.msgs { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.wrap { height: 100%;  min-height: 0; overflow: auto; padding: 12px; background: var(--card2); }
 .muted { font-size: 12px; color: var(--muted); }
 .pending { display:flex; align-items:center; gap:10px; padding:10px; border:1px dashed var(--border); border-radius:14px; background: var(--card); }
 .spinner { width:18px; height:18px; border-radius:999px; border:3px solid var(--border); border-top-color: var(--primary); animation: spin .9s linear infinite; }

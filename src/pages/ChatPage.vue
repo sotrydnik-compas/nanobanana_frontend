@@ -318,7 +318,10 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.shell { height: 100%; }
+.shell {
+  height: 100%;
+  min-height: 0;
+}
 
 .layout{
   display: flex;
@@ -326,18 +329,36 @@ onBeforeUnmount(() => {
   padding: 12px;
   height: 100%;
   min-height: 0;
+  box-sizing: border-box;
+
+  /* чтобы не появлялся “внешний” скролл внутри layout */
+  overflow: hidden;
 }
 
-.left { width: 300px; flex: 0 0 300px; min-height: 0; }
-.center { flex: 1; min-width: 0; min-height: 0; display: flex; }
-.right { width: 360px; flex: 0 0 360px; min-height: 0; }
+.left, .center, .right {
+  min-height: 0; /* ключ: разрешаем внутренние скроллы */
+}
+
+.left {
+  flex: 0 0 280px;
+}
+
+.center {
+  flex: 1;
+  min-width: 0;
+}
+
+.right {
+  flex: 0 0 280px;
+  height: 97%;
+}
 
 .center-inner{
-  flex: 1;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 0;
 }
 
 .card{
@@ -346,7 +367,7 @@ onBeforeUnmount(() => {
   border-radius: 16px;
   background: var(--card);
   border: 1px solid var(--border);
-  overflow: hidden;
+  overflow: hidden; /* важно: скролл будет в ChatMessages.wrap */
 }
 
 .alert { padding: 10px 12px; border-radius: 14px; border: 1px solid; font-size: 13px; }
@@ -359,9 +380,8 @@ onBeforeUnmount(() => {
 .embed .right { display: none; }
 
 @media (max-width: 980px) {
-  .layout { flex-direction: column; height: auto; }
+  .layout { flex-direction: column; height: 100%; }
   .left, .right { width: 100%; flex: 0 0 auto; }
-  .center { display: block; }
-  .center-inner { height: auto; }
+  .center { min-width: 0; }
 }
 </style>

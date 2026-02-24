@@ -18,8 +18,7 @@ const isAuthed = computed(() => !!auth.state.accessToken)
 const selectedPlan = computed(() => (plans.value || []).find(p => p.id === selectedPlanId.value) || null)
 
 function money(amount_minor, currency) {
-  const v = Number(amount_minor || 0) / 100
-  return `${v.toFixed(2)} ${currency || 'RUB'}`
+  return amount_minor.toFixed(2) + ' ' + currency;
 }
 
 async function load() {
@@ -38,15 +37,11 @@ async function load() {
     // samples — опционально (ошибки не валят страницу)
     try {
       if (aiApi.samples) {
-        const s = await aiApi.samples()
-        const imgs = s?.images || s?.samples || s || []
-        samples.value = (Array.isArray(imgs) ? imgs : [])
-          .map(x => {
-            if (typeof x === 'string') return { url: x }
-            return { url: x?.url || x?.image_url || '' }
-          })
+        const s = await aiApi.samples(1, 12) // можно 10, можно 12 под карусель
+        const items = Array.isArray(s?.items) ? s.items : []
+        samples.value = items
+          .map(x => ({ url: x?.url || '' }))
           .filter(x => !!x.url)
-          .slice(0, 12)
       } else {
         samples.value = []
       }
@@ -121,11 +116,11 @@ onMounted(load)
 
       <div class="carousel">
         <div v-for="(img, idx) in samples" :key="idx" class="slide">
-          <img :src="img.url" alt="sample" />
+          <img :src="img.url" alt="sample" loading="lazy" decoding="async" />
         </div>
 
         <div v-if="!samples.length" class="placeholder">
-          Примеры появятся после добавления endpoint <span class="mono">/api/v1/ai/samples</span>
+          Пока нет примеров в галерее.
         </div>
       </div>
 
@@ -277,7 +272,7 @@ onMounted(load)
   gap: 10px;
   color: var(--text);
 }
-.plan:hover { background: #f4f4f5; }
+.plan:hover { background: var(--card2Hover); }
 
 .plan.selected {
   border-color: var(--primary, #2563eb);

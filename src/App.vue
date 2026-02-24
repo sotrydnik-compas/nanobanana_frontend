@@ -13,6 +13,7 @@ const router = useRouter()
 
 const isEmbed = computed(() => route.query.embed === '1')
 const hideChrome = computed(() => !!route.meta.hideChrome || isEmbed.value)
+const noOuterScroll = computed(() => route.name === 'chat' || isEmbed.value)
 
 async function onLogout() {
   await auth.logout()
@@ -23,7 +24,7 @@ async function onLogout() {
 <template>
   <div class="app">
     <TopBar v-if="!hideChrome" :user="auth.state.user" @logout="onLogout" />
-    <div class="app-main">
+    <div class="app-main" :class="{ noscroll: noOuterScroll }">
       <router-view />
     </div>
     <FooterBar v-if="!hideChrome" />
@@ -32,13 +33,29 @@ async function onLogout() {
 
 <style scoped>
 .app {
-  min-height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
+
 .app-main {
   flex: 1;
   min-height: 0;
   overflow: auto;
+
+  /* ВАЖНО: делаем контейнером flex, чтобы router-view мог растягиваться */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Для /chat мы прячем внешний скролл именно на app-main */
+.app-main.noscroll {
+  overflow: hidden;
+}
+
+/* ВАЖНО: растягиваем корневой элемент страницы из router-view */
+.app-main :deep(> *) {
+  flex: 1;
+  min-height: 0;
 }
 </style>

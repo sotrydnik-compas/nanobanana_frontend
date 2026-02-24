@@ -107,7 +107,10 @@ function downloadImage() {
 
 <style scoped>
 .bubble {
-  max-width: 820px;
+  display: inline-flex;
+  flex-direction: column;
+  width: fit-content;
+  max-width: min(820px, 100%);
   padding: 10px 12px;
   border-radius: 16px;
   border: 1px solid var(--border);

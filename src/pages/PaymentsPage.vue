@@ -19,8 +19,7 @@ const pollBusy = ref(false)
 const pendingPayments = computed(() => payments.value.filter(p => p.status === 'pending'))
 
 function money(amount_minor, currency) {
-  const v = Number(amount_minor || 0) / 100
-  return `${v.toFixed(2)} ${currency || 'RUB'}`
+  return amount_minor.toFixed(2) + ' ' + currency;
 }
 
 async function loadAll() {

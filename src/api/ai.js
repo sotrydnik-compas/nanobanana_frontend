@@ -4,8 +4,8 @@ import { apiJson } from './http'
 const base = endpoints.ai.base
 
 export const aiApi = {
-  samples: () =>
-    apiJson(`${base}${endpoints.ai.samples}`),
+  samples: (page = 1, page_size = 10) =>
+    apiJson(`${base}${endpoints.ai.samples}?page=${page}&page_size=${page_size}`),
   listChats: (limit = 50, offset = 0) =>
     apiJson(`${base}${endpoints.ai.chats}?limit=${limit}&offset=${offset}`),
 

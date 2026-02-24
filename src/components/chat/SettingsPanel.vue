@@ -8,9 +8,22 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:settings', 'update:urls', 'update:files'])
 
+const aspectPrimary = ['1:1', '3:4', '9:16', '16:9', '4:3']
+const showAllAspect = ref(false)
+
 const aspectOptions = [
-  '1:1','2:3','3:2','3:4','4:3','4:5','5:4','9:16','16:9','21:9','auto'
+  '2:3','3:2','4:5','5:4','21:9','auto'
 ]
+
+const fileInput = ref(null)
+function openPicker() {
+  if (remaining.value <= 0) return
+  fileInput.value?.click()
+}
+
+function onDrop(e) {
+  addFiles(e.dataTransfer?.files)
+}
 
 const urlInput = ref('')
 const maxTotal = 7
@@ -101,9 +114,34 @@ function onPickFiles(e) {
 
     <div class="section">
       <div class="lbl">Соотношение сторон</div>
-      <select class="sel" v-model="settings.aspectRatio">
-        <option v-for="o in aspectOptions" :key="o" :value="o">{{ o }}</option>
-      </select>
+
+      <div class="aspect-scroll">
+        <button
+          v-for="o in aspectPrimary"
+          :key="o"
+          class="segbtn"
+          :class="{ active: settings.aspectRatio === o }"
+          @click="settings.aspectRatio = o"
+        >
+          {{ o }}
+        </button>
+
+        <button class="segbtn" @click="showAllAspect = !showAllAspect">
+          {{ showAllAspect ? 'Свернуть' : 'Ещё' }}
+        </button>
+      </div>
+
+      <div v-if="showAllAspect" class="aspect-all">
+        <button
+          v-for="o in aspectOptions"
+          :key="o"
+          class="miniopt"
+          :class="{ active: settings.aspectRatio === o }"
+          @click="settings.aspectRatio = o"
+        >
+          {{ o }}
+        </button>
+      </div>
     </div>
 
     <div class="section">
@@ -132,7 +170,28 @@ function onPickFiles(e) {
 
     <div class="section">
       <div class="lbl">Файлы (jpg/png/webp, до {{ maxSizeMB }}MB)</div>
-      <input type="file" accept="image/jpeg,image/png,image/webp" multiple @change="onPickFiles" :disabled="remaining<=0" />
+
+      <div
+        class="drop"
+        :class="{ disabled: remaining<=0 }"
+        @click="openPicker"
+        @dragover.prevent
+        @drop.prevent="onDrop"
+      >
+        <div class="drop-title">Нажми или перетащи для загрузки изображений</div>
+        <div class="drop-sub">(0/{{ maxTotal }})</div>
+      </div>
+
+      <input
+        ref="fileInput"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        @change="onPickFiles"
+        :disabled="remaining<=0"
+        style="display:none;"
+      />
+
       <div class="files" v-if="files.length">
         <div class="file" v-for="(f, idx) in files" :key="idx">
           <div class="fn">{{ f.name }}</div>
@@ -144,26 +203,112 @@ function onPickFiles(e) {
 </template>
 
 <style scoped>
-.panel { background:#fff; border:1px solid #e5e7eb; border-radius:16px; overflow:auto; height: calc(100vh - 80px); padding: 10px; }
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: auto;
+  height: 100%;
+  min-height: 0;
+  padding: 10px;
+  color: var(--text);
+}
+
 .head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; }
 .h { font-weight: 900; }
-.small { font-size: 12px; color:#6b7280; }
+.small { font-size: 12px; color: var(--muted); }
+
 .section { margin-bottom: 14px; }
-.lbl { font-size: 12px; font-weight: 900; color:#374151; margin-bottom: 6px; }
-.inp, .ta, .sel { width:100%; box-sizing:border-box; border:1px solid #e5e7eb; background:#fafafa; border-radius:12px; padding:10px; font-size: 13px; }
+.lbl { font-size: 12px; font-weight: 900; color: var(--theadText); margin-bottom: 6px; }
+
+.inp, .ta, .sel {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 13px;
+}
 .ta { resize: vertical; }
+
 .seg { display:flex; gap:8px; }
-.segbtn { flex:1; border:1px solid #e5e7eb; background:#fff; border-radius:12px; padding:8px 10px; cursor:pointer; font-weight:900; font-size:12px; }
-.segbtn.active { border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.12); background:#eef2ff; }
+.segbtn {
+  flex: 1;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 12px;
+}
+.segbtn.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59,130,246,.18);
+  background: var(--card2);
+}
+
+.aspect-scroll{
+  display:flex;
+  gap:8px;
+  overflow:auto;
+  padding-bottom: 4px;
+}
+.aspect-all{
+  margin-top: 10px;
+  display:flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.miniopt{
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 12px;
+}
+.miniopt.active{
+  border-color: var(--primary);
+}
+
 .row { display:flex; gap:8px; align-items:center; }
-.btn { width:42px; height:42px; border-radius:12px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-weight:900; }
+.btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 900;
+}
 .btn:disabled { opacity:.6; cursor:not-allowed; }
+
 .chips { margin-top: 8px; display:flex; flex-wrap:wrap; gap:8px; }
-.chip { display:flex; gap:8px; align-items:center; border:1px solid #e5e7eb; background:#fff; border-radius:999px; padding:6px 10px; max-width:100%; }
-.ct { font-size: 12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width: 240px; }
-.x { border:none; background:transparent; cursor:pointer; font-weight:900; }
+.chip { display:flex; gap:8px; align-items:center; border:1px solid var(--border); background: var(--card); border-radius:999px; padding:6px 10px; max-width:100%; }
+.ct { font-size: 12px; color: var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width: 240px; }
+.x { border:none; background:transparent; color: var(--text); cursor:pointer; font-weight:900; }
+
+.drop{
+  border: 2px dashed var(--border);
+  background: var(--card2);
+  border-radius: 14px;
+  padding: 18px 12px;
+  text-align: center;
+  cursor: pointer;
+}
+.drop.disabled{ opacity:.6; cursor:not-allowed; }
+.drop-title{ font-weight: 900; color: var(--text); }
+.drop-sub{ margin-top: 6px; font-size: 12px; color: var(--muted); font-weight: 800; }
+
 .files { margin-top: 8px; display:flex; flex-direction:column; gap:8px; }
-.file { display:flex; justify-content:space-between; gap:10px; border:1px solid #e5e7eb; background:#fff; border-radius:12px; padding:8px 10px; }
-.fn { font-size: 12px; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.mini { border:1px solid #e5e7eb; background:#fff; border-radius:10px; padding:6px 8px; cursor:pointer; font-weight:900; font-size:11px; }
+.file { display:flex; justify-content:space-between; gap:10px; border:1px solid var(--border); background: var(--card); border-radius:12px; padding:8px 10px; }
+.fn { font-size: 12px; font-weight:800; color: var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mini { border:1px solid var(--border); background: var(--card2); color: var(--text); border-radius:10px; padding:6px 8px; cursor:pointer; font-weight:900; font-size:11px; }
 </style>

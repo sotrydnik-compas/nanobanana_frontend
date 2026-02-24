@@ -239,7 +239,7 @@ async function logoutAllDevices() {
 
 <style scoped>
 .page {
-  max-width: 860px;
+  max-width: 980px;
   margin: 0 auto;
   padding: 18px;
   color: var(--text);
