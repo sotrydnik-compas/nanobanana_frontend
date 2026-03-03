@@ -10,6 +10,7 @@ import ResetPasswordPage from '../pages/ResetPasswordPage.vue'
 import AccountPage from '../pages/AccountPage.vue'
 import PaymentsPage from '../pages/PaymentsPage.vue'
 import HomePage from '../pages/HomePage.vue'
+import AdminPage from '../pages/AdminPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL), // base="/widget/"
@@ -21,6 +22,7 @@ const router = createRouter({
     { path: '/', name: 'chat', component: ChatPage, meta: { requiresAuth: true } },
     { path: '/account', name: 'account', component: AccountPage, meta: { requiresAuth: true } },
     { path: '/payments', name: 'payments', component: PaymentsPage, meta: { requiresAuth: true } },
+    { path: '/admin', name: 'admin', component: AdminPage, meta: { requiresAuth: true }},
 
     // auth pages (no TopBar/Footer)
     { path: '/login', name: 'login', component: LoginPage, meta: { hideChrome: true } },

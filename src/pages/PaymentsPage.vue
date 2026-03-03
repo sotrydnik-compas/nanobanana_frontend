@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { billingApi } from '../api/billing'
 import { auth } from '../stores/auth'
+import { confirm } from '../utils/confirm'
 
 auth.init()
 
@@ -45,6 +46,16 @@ async function loadAll() {
 async function buyPlan(planId) {
   errorText.value = ''
   infoText.value = ''
+
+  const p = (plans.value || []).find(x => x.id === planId) || null
+  const ok = await confirm({
+    title: 'Купить тариф?',
+    text: p ? `${p.title} — ${p.requests_total} запросов за ${money(p.price_minor, p.currency)}.` : 'Подтвердите покупку тарифа.',
+    yesText: 'Купить',
+    noText: 'Отмена',
+  })
+  if (!ok) return
+
   busy.value = true
   try {
     const r = await billingApi.createPayment(planId)
@@ -54,7 +65,6 @@ async function buyPlan(planId) {
     // уводим пользователя на оплату
     const w = window.open(url, '_blank', 'noopener,noreferrer')
     if (!w) {
-      // если попапы запрещены — покажем ссылку
       infoText.value = `Откройте ссылку для оплаты: ${url}`
     } else {
       infoText.value = 'Ссылка оплаты открыта в новой вкладке. После оплаты вернитесь сюда.'
@@ -199,9 +209,13 @@ onBeforeUnmount(() => {
 <style scoped>
 .page {
   max-width: 980px;
+  width: 100%;
   margin: 0 auto;
   padding: 18px;
-  color: var(--text);
+  box-sizing: border-box;
+
+  /* чтобы страница минимум заполняла пространство между TopBar и Footer */
+  min-height: 100%;
 }
 
 .top {

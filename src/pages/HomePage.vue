@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { auth } from '../stores/auth'
 import { billingApi } from '../api/billing'
 import { aiApi } from '../api/ai'
+import { confirm } from '../utils/confirm'
 
 auth.init()
 const router = useRouter()
@@ -81,6 +82,15 @@ async function buySelectedPlan() {
     return
   }
 
+  const p = selectedPlan.value
+  const ok = await confirm({
+    title: 'Купить выбранный тариф?',
+    text: p ? `${p.title} — ${p.requests_total} запросов за ${money(p.price_minor, p.currency)}.` : 'Подтвердите покупку.',
+    yesText: 'Купить',
+    noText: 'Отмена',
+  })
+  if (!ok) return
+
   try {
     const r = await billingApi.createPayment(selectedPlanId.value)
     const url = r?.payment_url
@@ -99,7 +109,7 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="page">
+  <div class="home-page">
     <!-- HERO / ABOUT (единый блок) -->
     <section id="about" class="hero">
       <div class="hero-head">
@@ -169,11 +179,18 @@ onMounted(load)
 </template>
 
 <style scoped>
-.page {
-  max-width: 1100px;
+.home-page {
+  max-width: 980px !important; /* на случай глобальных конфликтов */
+  width: 100%;
   margin: 0 auto;
   padding: 18px;
-  color: var(--text);
+  box-sizing: border-box;
+
+  /* ключ: растягиваем страницу по высоте */
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 /* HERO */
@@ -240,6 +257,11 @@ onMounted(load)
   border: 1px solid var(--border, #e5e7eb);
   border-radius: 18px;
   padding: 16px;
+
+  /* ключ: этот блок заполняет оставшуюся высоту */
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .block-top {
@@ -284,7 +306,8 @@ onMounted(load)
 .plan-meta { color: var(--muted, #6b7280); font-weight: 800; font-size: 12px; }
 
 .plans-footer {
-  margin-top: 14px;
+  margin-top: auto; /* кнопка уедет вниз блока */
+  padding-top: 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;

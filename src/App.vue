@@ -5,6 +5,7 @@ import { auth } from './stores/auth'
 
 import TopBar from './components/common/TopBar.vue'
 import FooterBar from './components/common/FooterBar.vue'
+import ConfirmModal from './components/common/ConfirmModal.vue'
 
 auth.init()
 
@@ -28,6 +29,7 @@ async function onLogout() {
       <router-view />
     </div>
     <FooterBar v-if="!hideChrome" />
+    <ConfirmModal />
   </div>
 </template>
 

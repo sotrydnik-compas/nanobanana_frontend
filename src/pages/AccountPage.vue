@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from '../stores/auth'
 import { accountApi } from '../api/account'
+import { confirm } from '../utils/confirm'
 
 auth.init()
 const router = useRouter()
@@ -46,6 +47,15 @@ async function submitPasswordChange() {
   if (!np || np.length < 8) return (errorText.value = 'Новый пароль должен быть минимум 8 символов.')
   if (np !== np2) return (errorText.value = 'Пароли не совпадают.')
 
+  const ok = await confirm({
+    title: 'Сменить пароль?',
+    text: 'После смены пароля нужно будет войти заново.',
+    yesText: 'Сменить',
+    noText: 'Отмена',
+    danger: true,
+  })
+  if (!ok) return
+
   busy.value = true
   try {
     await accountApi.changePassword(op, np)
@@ -74,6 +84,14 @@ async function submitEmailChange() {
 
   if (!em || !em.includes('@')) return (errorText.value = 'Введите корректный email.')
   if (!pw) return (errorText.value = 'Введите пароль для подтверждения.')
+
+  const ok = await confirm({
+    title: 'Отправить код подтверждения?',
+    text: `Мы отправим код на новый email: ${em}.`,
+    yesText: 'Отправить',
+    noText: 'Отмена',
+  })
+  if (!ok) return
 
   busy.value = true
   try {
@@ -124,6 +142,16 @@ function resetEmailFlow() {
 async function logoutAllDevices() {
   info.value = ''
   errorText.value = ''
+
+  const ok = await confirm({
+    title: 'Выйти со всех устройств?',
+    text: 'Будут завершены все сессии.',
+    yesText: 'Выйти',
+    noText: 'Отмена',
+    danger: true,
+  })
+  if (!ok) return
+
   busy.value = true
   try {
     await accountApi.logoutAll()
@@ -240,9 +268,13 @@ async function logoutAllDevices() {
 <style scoped>
 .page {
   max-width: 980px;
+  width: 100%;
   margin: 0 auto;
   padding: 18px;
-  color: var(--text);
+  box-sizing: border-box;
+
+  /* чтобы страница минимум заполняла пространство между TopBar и Footer */
+  min-height: 100%;
 }
 
 .top {

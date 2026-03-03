@@ -16,6 +16,14 @@ const aspectOptions = [
 ]
 
 const fileInput = ref(null)
+const urlInput = ref('')
+const maxSizeMB = 10 // из ai settings MAX_UPLOAD_MB
+const allowed = ['image/jpeg','image/png','image/webp']
+
+const maxTotal = computed(() => (props.settings.mode === 'batch' ? 100 : 7))
+const totalRefs = computed(() => (props.urls.length || 0) + (props.files.length || 0))
+const remaining = computed(() => Math.max(0, maxTotal - totalRefs.value))
+
 function openPicker() {
   if (remaining.value <= 0) return
   fileInput.value?.click()
@@ -24,14 +32,6 @@ function openPicker() {
 function onDrop(e) {
   addFiles(e.dataTransfer?.files)
 }
-
-const urlInput = ref('')
-const maxTotal = 7
-const maxSizeMB = 10 // из ai settings MAX_UPLOAD_MB
-const allowed = ['image/jpeg','image/png','image/webp']
-
-const totalRefs = computed(() => (props.urls.length || 0) + (props.files.length || 0))
-const remaining = computed(() => Math.max(0, maxTotal - totalRefs.value))
 
 function addUrl() {
   const u = urlInput.value.trim()
@@ -82,7 +82,10 @@ function onPickFiles(e) {
   <div class="panel">
     <div class="head">
       <div class="h">Параметры</div>
-      <div class="small">Референсы: {{ totalRefs }}/{{ maxTotal }}</div>
+      <div class="small">
+        {{ settings.mode === 'batch' ? 'Изображения' : 'Референсы' }}:
+        {{ totalRefs }}/{{ maxTotal }}
+      </div>
     </div>
 
     <div class="section">
@@ -93,6 +96,9 @@ function onPickFiles(e) {
         </button>
         <button class="segbtn" :class="{ active: settings.mode === 'product_card' }" @click="settings.mode='product_card'">
           Карточка товара
+        </button>
+        <button class="segbtn" :class="{ active: settings.mode === 'batch' }" @click="settings.mode='batch'">
+          Пакетная обработка
         </button>
       </div>
     </div>
@@ -122,9 +128,7 @@ function onPickFiles(e) {
           class="segbtn"
           :class="{ active: settings.aspectRatio === o }"
           @click="settings.aspectRatio = o"
-        >
-          {{ o }}
-        </button>
+        >{{ o }}</button>
 
         <button class="segbtn" @click="showAllAspect = !showAllAspect">
           {{ showAllAspect ? 'Свернуть' : 'Ещё' }}
@@ -138,9 +142,7 @@ function onPickFiles(e) {
           class="miniopt"
           :class="{ active: settings.aspectRatio === o }"
           @click="settings.aspectRatio = o"
-        >
-          {{ o }}
-        </button>
+        >{{ o }}</button>
       </div>
     </div>
 
@@ -154,7 +156,10 @@ function onPickFiles(e) {
     </div>
 
     <div class="section">
-      <div class="lbl">URL-референсы</div>
+      <div class="lbl">
+        {{ settings.mode === 'batch' ? 'URL изображений (до 100)' : 'URL-референсы' }}
+      </div>
+
       <div class="row">
         <input class="inp" v-model="urlInput" placeholder="https://example.com/img.jpg" />
         <button class="btn" @click="addUrl" :disabled="remaining<=0">+</button>
@@ -169,7 +174,9 @@ function onPickFiles(e) {
     </div>
 
     <div class="section">
-      <div class="lbl">Файлы (jpg/png/webp, до {{ maxSizeMB }}MB)</div>
+      <div class="lbl">
+        {{ settings.mode === 'batch' ? 'Файлы (до 100, jpg/png/webp)' : `Файлы (jpg/png/webp, до ${maxSizeMB}MB)` }}
+      </div>
 
       <div
         class="drop"
@@ -178,8 +185,10 @@ function onPickFiles(e) {
         @dragover.prevent
         @drop.prevent="onDrop"
       >
-        <div class="drop-title">Нажми или перетащи для загрузки изображений</div>
-        <div class="drop-sub">(0/{{ maxTotal }})</div>
+        <div class="drop-title">
+          {{ settings.mode === 'batch' ? 'Нажми или перетащи изображения для пакетной обработки' : 'Нажми или перетащи для загрузки изображений' }}
+        </div>
+        <div class="drop-sub">({{ totalRefs }}/{{ maxTotal }})</div>
       </div>
 
       <input

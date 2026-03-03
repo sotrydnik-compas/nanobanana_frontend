@@ -35,4 +35,24 @@ export const aiApi = {
 
     return apiJson(`${base}${endpoints.ai.generate}`, { method: 'POST', body: fd })
   },
+  generateBatch: (payload) => {
+    // payload: { prompt, resolution, aspectRatio, chatId?, imageUrls[], files[] }
+    const fd = new FormData()
+    fd.append('prompt', payload.prompt)
+    fd.append('resolution', payload.resolution || '1K')
+    fd.append('aspectRatio', payload.aspectRatio || 'auto')
+
+    if (payload.chatId) fd.append('chat_id', payload.chatId)
+
+    for (const u of (payload.imageUrls || [])) fd.append('image_urls', u)
+    for (const f of (payload.files || [])) fd.append('images', f, f.name)
+
+    return apiJson(`${base}${endpoints.ai.generateBatch}`, { method: 'POST', body: fd })
+  },
+
+  getBatch: (batchId) =>
+    apiJson(`${base}${endpoints.ai.batch(batchId)}`),
+
+  cancelBatch: (batchId) =>
+    apiJson(`${base}${endpoints.ai.cancelBatch(batchId)}`, { method: 'POST' }),
 }

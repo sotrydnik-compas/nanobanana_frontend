@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { billingApi } from '../../api/billing'
 import { auth } from '../../stores/auth'
+import { confirm } from '../../utils/confirm'
 
 const props = defineProps({
   user: { type: Object, default: null },
@@ -71,12 +72,23 @@ async function goAccount() {
   await router.push({ name: 'account' })
 }
 
+async function goAdmin() {
+  await router.push({ name: 'admin' })
+}
+
 async function goSection(hash) {
   // всегда ведем на /home + якорь
   await router.push({ name: 'home', hash })
 }
 
-function clickLogout() {
+async function clickLogout() {
+  const ok = await confirm({
+    title: 'Выйти из аккаунта?',
+    text: 'Вы будете перенаправлены на страницу входа.',
+    yesText: 'Выйти',
+    noText: 'Отмена',
+  })
+  if (!ok) return
   emit('logout')
 }
 
@@ -145,6 +157,14 @@ onBeforeUnmount(() => {
       </template>
 
       <template v-else>
+        <button
+          v-if="props.user?.role === 'admin'"
+          class="btn"
+          type="button"
+          @click="goAdmin"
+        >
+          Админ-панель
+        </button>
         <button class="btn" type="button" @click="goAccount">{{ email }}</button>
         <button class="btn" type="button" @click="clickLogout">Выйти</button>
       </template>
