@@ -1,6 +1,11 @@
 html, body, #app {
   height: 100%;
 }
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 :root{
   --bg: #f3f4f6;
   --text: #111827;
@@ -103,14 +108,15 @@ a:hover { text-decoration: underline; }
 
 .auth-shell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
   padding: 16px;
+  width: 100%;
 }
 
 .auth-card {
-  width: 420px;
-  max-width: 100%;
+  width: min(420px, 100%);
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -163,8 +169,17 @@ a:hover { text-decoration: underline; }
 
 .auth-links {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   justify-content: space-between;
   margin-top: 6px;
   font-size: 12px;
+}
+
+@media (max-width: 420px) {
+  .auth-links {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
 }

@@ -41,9 +41,9 @@ onMounted(() => {
       </div>
 
       <div class="links">
-        <a class="lnk" href="mailto:support@nanobanana.ai">support@nanobanana.ai</a>
+        <a class="lnk" href="mailto:miller-a@yandex.ru">miller-a@yandex.ru</a>
         <span class="dot">•</span>
-        <a class="lnk" href="#" target="_blank" rel="noopener">Telegram</a>
+        <a class="lnk" href="https://t.me/antonmillerpr" target="_blank" rel="noopener">Telegram</a>
       </div>
     </div>
 

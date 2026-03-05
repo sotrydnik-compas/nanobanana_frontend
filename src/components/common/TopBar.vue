@@ -18,6 +18,7 @@ const route = useRoute()
 const isAuthed = computed(() => !!auth.state.accessToken)
 const email = computed(() => props.user?.email || 'Аккаунт')
 const isHome = computed(() => route.name === 'home')
+const isChat = computed(() => route.name === 'chat')
 
 const requestsLeft = ref(null)
 const balanceBusy = ref(false)
@@ -115,7 +116,6 @@ function onKeyDown(e) {
 onMounted(async () => {
   window.addEventListener('keydown', onKeyDown)
 
-  // баланс нужен только когда залогинен (на /home мы просто не показываем, но данные пусть обновляются)
   if (isAuthed.value) {
     await loadBalanceSafe()
     startBalancePolling()
@@ -161,24 +161,27 @@ onBeforeUnmount(() => {
 
     <!-- CENTER -->
     <div class="center">
-      <!-- На Home: всегда якоря -->
+      <!-- Home: якоря -->
       <template v-if="isHome">
         <button class="link" type="button" @click="goSection('#about')">Описание</button>
         <button class="link" type="button" @click="goSection('#plans')">Тарифы</button>
       </template>
 
-      <!-- Вне Home: текущая логика -->
+      <!-- Неавторизован вне Home -->
       <template v-else-if="!isAuthed">
         <button class="link" type="button" @click="goSection('#about')">Описание</button>
         <button class="link" type="button" @click="goSection('#plans')">Тарифы</button>
       </template>
 
+      <!-- Авторизован: баланс всегда в центре -->
       <template v-else>
         <div class="balance">
           <span class="balance-num">{{ requestsLeft ?? '—' }}</span>
           <span class="balance-label">запросов</span>
         </div>
-        <button class="btn" type="button" @click="goPayments">Платежи</button>
+
+        <!-- ВНЕ чата можно оставить быстрые кнопки как раньше -->
+        <button v-if="!isChat" class="btn" type="button" @click="goPayments">Платежи</button>
       </template>
     </div>
 
@@ -191,17 +194,20 @@ onBeforeUnmount(() => {
       </template>
 
       <template v-else>
-        <!-- Авторизован на Home: всё справа в бургер -->
-        <template v-if="isHome">
+        <!-- На Home и на Chat: всё справа в бургер -->
+        <template v-if="isHome || isChat">
           <button class="icon-btn" type="button" @click="toggleMenu" aria-label="Меню">
             <span class="icon-lines" />
           </button>
 
           <div v-if="menuOpen" class="menu-overlay" @click.self="closeMenu">
             <div class="menu-panel">
-              <button class="menu-item" type="button" @click="goChat">Чат</button>
+              <!-- На Home показываем Чат, на Chat можно не показывать -->
+              <button v-if="isHome" class="menu-item" type="button" @click="goChat">Чат</button>
+
               <button class="menu-item" type="button" @click="goPayments">Платежи</button>
               <button class="menu-item" type="button" @click="goAccount">Аккаунт ({{ email }})</button>
+
               <button
                 v-if="props.user?.role === 'admin'"
                 class="menu-item"
@@ -218,7 +224,7 @@ onBeforeUnmount(() => {
           </div>
         </template>
 
-        <!-- Авторизован не на Home: как было -->
+        <!-- Авторизован не на Home/Chat: как было -->
         <template v-else>
           <button
             v-if="props.user?.role === 'admin'"
@@ -387,7 +393,6 @@ onBeforeUnmount(() => {
 }
 
 @media (min-width: 861px) {
-  /* desktop: делаем меню dropdown (без drawer-ощущения) */
   .menu-overlay { background: transparent; }
   .menu-panel {
     top: 56px;

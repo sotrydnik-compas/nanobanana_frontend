@@ -32,6 +32,9 @@ const pollTimer = ref(null)
 const errorText = ref('')
 const infoText = ref('')
 
+const showChatsDrawer = ref(false)
+const showSettingsDrawer = ref(false)
+
 const settings = reactive({
   aspectRatio: 'auto',
   resolution: '1K',
@@ -45,6 +48,11 @@ const refsState = reactive({
   urls: [],
   files: [], // File[]
 })
+
+function closeDrawers() {
+  showChatsDrawer.value = false
+  showSettingsDrawer.value = false
+}
 
 function stopPolling() {
   if (pollTimer.value) {
@@ -106,6 +114,7 @@ function onNewChat() {
   inFlightKind.value = ''
   taskInFlight.value = false
   stopPolling()
+  showChatsDrawer.value = false
 }
 
 async function onSelectChat(chatId) {
@@ -118,6 +127,9 @@ async function onSelectChat(chatId) {
 
   stopPolling()
   await loadMessages(chatId)
+
+  // ✅ на мобилке закрываем drawer со списком чатов после выбора
+  showChatsDrawer.value = false
 }
 
 async function onCloseChat(chatId) {
@@ -161,7 +173,7 @@ const finalPrompt = (userPrompt) => {
   if (settings.mode !== 'product_card') return (userPrompt || '').trim()
 
   const vLabel =
-    settings.productVariant === 'ugc' ? 'ugc пакет' :
+    settings.productVariant == 'ugc' ? 'ugc пакет' :
     settings.productVariant === 'image' ? 'имиджевые варианты' :
     'студийное фото'
 
@@ -177,7 +189,6 @@ function validateBeforeSend(userPrompt) {
     return false
   }
 
-  // промпт обязателен всегда (в batch тоже)
   if (settings.mode === 'product_card') {
     if (!settings.title.trim()) { errorText.value = 'Введите заголовок.'; return false }
     if (!settings.advantage.trim()) { errorText.value = 'Введите преимущество.'; return false }
@@ -195,7 +206,6 @@ function validateBeforeSend(userPrompt) {
     return false
   }
 
-  // batch: хотя бы одно изображение обязательно
   if (settings.mode === 'batch' && totalRefs === 0) {
     errorText.value = 'Добавьте хотя бы одно изображение для пакетной обработки.'
     return false
@@ -255,13 +265,11 @@ async function startBatchPolling(batchId, chatId) {
       const st = r?.status || 'pending'
       const p = r?.progress || {}
 
-      // строка статуса (вынесли сюда, чтобы видно было прогресс)
       infoText.value = `Пакет: ${p.processed ?? 0}/${p.total ?? 0}, ok ${p.success ?? 0}, err ${p.failed ?? 0}, статус: ${st}`
 
       const processed = Number(p.processed ?? 0)
       const curIdx = Number(p.current_index ?? -1)
 
-      // подтягиваем чат, когда пошёл прогресс (появляются user/assistant сообщения по items)
       if (processed !== lastProcessed || curIdx !== lastIndex) {
         lastProcessed = processed
         lastIndex = curIdx
@@ -276,7 +284,6 @@ async function startBatchPolling(batchId, chatId) {
         inFlightKind.value = ''
         await loadMessages(chatId)
         await loadChats()
-        // финальное сообщение в инфо оставляем как есть
       }
     } catch (e) {
       errorText.value = e?.message || 'Ошибка опроса пакетной задачи'
@@ -340,7 +347,6 @@ async function onSend(userPrompt) {
       return
     }
 
-    // иначе — обычный generate_pro
     inFlightKind.value = 'task'
 
     const r = await aiApi.generatePro({
@@ -387,9 +393,9 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="shell" :class="{ embed: isEmbed }">
-
     <div class="layout">
-      <aside class="left">
+      <!-- DESKTOP: список чатов слева -->
+      <aside class="left desktop-only">
         <ChatList
           :chats="chats"
           :loading="chatsLoading"
@@ -401,6 +407,7 @@ onBeforeUnmount(() => {
         />
       </aside>
 
+      <!-- CENTER: сообщения + composer -->
       <main class="center">
         <div class="center-inner">
           <div class="card">
@@ -415,7 +422,10 @@ onBeforeUnmount(() => {
             :disabled="taskInFlight || currentChatStatus === 'closed'"
             :hint="currentChatStatus === 'closed' ? 'Чат закрыт — создайте новый' : ''"
             @send="onSend"
+            @openChats="showChatsDrawer = true"
+            @openSettings="showSettingsDrawer = true"
           />
+
           <button
             v-if="taskInFlight && inFlightKind==='batch'"
             class="btn danger"
@@ -430,13 +440,40 @@ onBeforeUnmount(() => {
         </div>
       </main>
 
-      <aside class="right">
+      <!-- DESKTOP: параметры справа -->
+      <aside class="right desktop-only">
         <SettingsPanel
           v-model:settings="settings"
           v-model:urls="refsState.urls"
           v-model:files="refsState.files"
         />
       </aside>
+
+      <!-- MOBILE: drawer чатов слева -->
+      <div v-if="showChatsDrawer" class="overlay" @click.self="showChatsDrawer = false">
+        <div class="drawer left-drawer">
+          <ChatList
+            :chats="chats"
+            :loading="chatsLoading"
+            :selectedChatId="currentChatId"
+            @newChat="onNewChat"
+            @selectChat="onSelectChat"
+            @closeChat="onCloseChat"
+            @deleteChat="onDeleteChat"
+          />
+        </div>
+      </div>
+
+      <!-- MOBILE: drawer настроек справа -->
+      <div v-if="showSettingsDrawer" class="overlay" @click.self="showSettingsDrawer = false">
+        <div class="drawer right-drawer">
+          <SettingsPanel
+            v-model:settings="settings"
+            v-model:urls="refsState.urls"
+            v-model:files="refsState.files"
+          />
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -447,24 +484,22 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 
-.layout{
+.layout {
   display: flex;
   gap: 12px;
   padding: 12px;
   height: 100%;
   min-height: 0;
   box-sizing: border-box;
-
-  /* чтобы не появлялся “внешний” скролл внутри layout */
-  overflow: hidden;
+  overflow: hidden; /* внешнего скролла нет */
 }
 
 .left, .center, .right {
-  min-height: 0; /* ключ: разрешаем внутренние скроллы */
+  min-height: 0;
 }
 
 .left {
-  flex: 0 0 280px;
+  flex: 0 0 300px;
 }
 
 .center {
@@ -473,11 +508,13 @@ onBeforeUnmount(() => {
 }
 
 .right {
-  flex: 0 0 280px;
-  height: 97%;
+  /* ✅ фикс: панель доходит до футера и не меняет ширину при "Ещё" */
+  flex: 0 0 360px;
+  min-width: 360px;
+  max-width: 360px;
 }
 
-.center-inner{
+.center-inner {
   height: 100%;
   min-height: 0;
   display: flex;
@@ -485,13 +522,13 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
-.card{
+.card {
   flex: 1;
   min-height: 0;
   border-radius: 16px;
   background: var(--card);
   border: 1px solid var(--border);
-  overflow: hidden; /* важно: скролл будет в ChatMessages.wrap */
+  overflow: hidden; /* скролл внутри ChatMessages */
 }
 
 .alert { padding: 10px 12px; border-radius: 14px; border: 1px solid; font-size: 13px; }
@@ -503,9 +540,40 @@ onBeforeUnmount(() => {
 .embed .center-inner { height: 100vh; }
 .embed .right { display: none; }
 
+/* MOBILE: скрываем боковые панели, включаем drawer */
 @media (max-width: 980px) {
-  .layout { flex-direction: column; height: 100%; }
-  .left, .right { width: 100%; flex: 0 0 auto; }
-  .center { min-width: 0; }
+  .layout { padding: 10px; }
+  .desktop-only { display: none; }
+  .left, .right { display: none; }
+}
+
+/* drawer */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.22);
+  z-index: 80;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  height: 100dvh;
+  width: min(340px, 88vw);
+  background: var(--card);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.left-drawer {
+  left: 0;
+  border-left: none;
+  border-radius: 0 16px 16px 0;
+}
+
+.right-drawer {
+  right: 0;
+  border-right: none;
+  border-radius: 16px 0 0 16px;
 }
 </style>
