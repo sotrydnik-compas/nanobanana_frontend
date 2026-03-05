@@ -19,26 +19,23 @@ const isAuthed = computed(() => !!auth.state.accessToken)
 const selectedPlan = computed(() => (plans.value || []).find(p => p.id === selectedPlanId.value) || null)
 
 function money(amount_minor, currency) {
-  return amount_minor.toFixed(2) + ' ' + currency;
+  return amount_minor.toFixed(2) + ' ' + currency
 }
 
 async function load() {
   errorText.value = ''
   busy.value = true
   try {
-    // планы — обязательно
     const p = await billingApi.listPlans()
     plans.value = (p && p.plans) ? p.plans : []
 
-    // дефолтно выберем первый тариф
     if (!selectedPlanId.value && plans.value.length) {
       selectedPlanId.value = plans.value[0].id
     }
 
-    // samples — опционально (ошибки не валят страницу)
     try {
       if (aiApi.samples) {
-        const s = await aiApi.samples(1, 12) // можно 10, можно 12 под карусель
+        const s = await aiApi.samples(1, 12)
         const items = Array.isArray(s?.items) ? s.items : []
         samples.value = items
           .map(x => ({ url: x?.url || '' }))
@@ -57,7 +54,6 @@ async function load() {
 }
 
 async function goLogin() {
-  // чтобы после логина можно было вернуться на тарифы
   await router.push({ name: 'login', query: { next: '/home#plans' } })
 }
 
@@ -71,37 +67,29 @@ function selectPlan(planId) {
 
 async function buySelectedPlan() {
   errorText.value = ''
-
-  if (!selectedPlanId.value) {
-    errorText.value = 'Выберите тариф.'
-    return
-  }
+  if (!selectedPlan.value) return
 
   if (!isAuthed.value) {
     await goLogin()
     return
   }
 
-  const p = selectedPlan.value
   const ok = await confirm({
-    title: 'Купить выбранный тариф?',
-    text: p ? `${p.title} — ${p.requests_total} запросов за ${money(p.price_minor, p.currency)}.` : 'Подтвердите покупку.',
+    title: 'Купить тариф?',
+    text: `Вы выбрали "${selectedPlan.value.title}".`,
     yesText: 'Купить',
     noText: 'Отмена',
   })
   if (!ok) return
 
+  busy.value = true
   try {
-    const r = await billingApi.createPayment(selectedPlanId.value)
-    const url = r?.payment_url
-    if (!url) throw new Error('Не получили ссылку оплаты')
-
-    window.open(url, '_blank', 'noopener,noreferrer')
-
-    // после оплаты пользователь вернется по redirect_url; мониторинг pending будет на /payments
+    await billingApi.createPayment(selectedPlan.value.id)
     await router.push({ name: 'payments' })
   } catch (e) {
-    errorText.value = e?.message || 'Не удалось создать платёж'
+    errorText.value = e?.message || 'Не удалось создать платеж'
+  } finally {
+    busy.value = false
   }
 }
 
@@ -110,10 +98,10 @@ onMounted(load)
 
 <template>
   <div class="home-page">
-    <!-- HERO / ABOUT (единый блок) -->
-    <section id="about" class="hero">
-      <div class="hero-head">
-        <div>
+    <!-- ABOUT -->
+    <section id="about" class="card">
+      <div class="head">
+        <div class="head-text">
           <h1 class="h1">Генерация изображений для бизнеса</h1>
           <p class="p">
             NanoBanana помогает быстро создавать визуалы: карточки товаров, рекламные креативы
@@ -121,11 +109,11 @@ onMounted(load)
           </p>
         </div>
 
-        <div class="hero-mini" v-if="busy">загрузка…</div>
+        <div v-if="busy" class="mini">загрузка…</div>
       </div>
 
-      <div class="carousel">
-        <div v-for="(img, idx) in samples" :key="idx" class="slide">
+      <div class="gallery">
+        <div v-for="(img, idx) in samples" :key="idx" class="img-card">
           <img :src="img.url" alt="sample" loading="lazy" decoding="async" />
         </div>
 
@@ -138,7 +126,7 @@ onMounted(load)
     </section>
 
     <!-- PLANS -->
-    <section id="plans" class="block">
+    <section id="plans" class="card">
       <div class="block-top">
         <div>
           <div class="title">Тарифы</div>
@@ -163,16 +151,15 @@ onMounted(load)
         </button>
       </div>
 
-      <div v-if="plans.length" class="plans-footer">
+      <div v-if="plans.length" class="actions">
         <button
           class="btn primary"
           type="button"
-          :disabled="!selectedPlanId"
+          :disabled="!selectedPlanId || busy"
           @click="buySelectedPlan"
         >
           {{ isAuthed ? 'Купить выбранный тариф' : 'Войти для покупки' }}
         </button>
-
       </div>
     </section>
   </div>
@@ -180,29 +167,29 @@ onMounted(load)
 
 <style scoped>
 .home-page {
-  max-width: 980px !important; /* на случай глобальных конфликтов */
+  max-width: 980px;
   width: 100%;
   margin: 0 auto;
   padding: 18px;
   box-sizing: border-box;
-
-  /* ключ: растягиваем страницу по высоте */
-  min-height: 100%;
   display: flex;
   flex-direction: column;
   gap: 18px;
 }
 
-/* HERO */
-.hero {
-  background: var(--card, #fff);
-  border: 1px solid var(--border, #e5e7eb);
+/* sections */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 18px;
   padding: 16px;
-  margin-bottom: 18px;
 }
 
-.hero-head {
+#about, #plans {
+  scroll-margin-top: 14px;
+}
+
+.head {
   display: flex;
   justify-content: space-between;
   gap: 14px;
@@ -210,29 +197,26 @@ onMounted(load)
 }
 
 .h1 { margin: 0; font-size: 34px; line-height: 1.1; font-weight: 950; }
-.p { margin: 10px 0 0; color: var(--muted, #6b7280); font-weight: 700; }
-.hero-mini { color: var(--muted, #6b7280); font-size: 12px; font-weight: 800; white-space: nowrap; }
+.p { margin: 10px 0 0; color: var(--muted); font-weight: 700; }
+.mini { color: var(--muted); font-size: 12px; font-weight: 800; white-space: nowrap; }
 
-/* carousel: 3–4 видно сразу, без кнопок */
-.carousel {
+/* gallery: вертикальный скролл страницы, без горизонтальной карусели */
+.gallery {
   margin-top: 14px;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scroll-snap-type: x mandatory;
 }
 
-.slide {
-  flex: 0 0 260px; /* на широком экране помещается 3–4 */
-  border: 1px solid var(--border, #e5e7eb);
-  background: var(--card2, #fafafa);
+.img-card {
+  border: 1px solid var(--border);
+  background: var(--card2);
   border-radius: 14px;
   overflow: hidden;
   aspect-ratio: 1 / 1;
-  scroll-snap-align: start;
 }
-.slide img {
+
+.img-card img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -240,28 +224,13 @@ onMounted(load)
 }
 
 .placeholder {
-  flex: 1;
-  min-width: 320px;
-  border: 1px dashed var(--border, #e5e7eb);
+  grid-column: 1 / -1;
+  border: 1px dashed var(--border);
   border-radius: 14px;
   padding: 14px;
-  color: var(--muted, #6b7280);
+  color: var(--muted);
   font-weight: 800;
   font-size: 12px;
-}
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-
-/* PLANS block */
-.block {
-  background: var(--card, #fff);
-  border: 1px solid var(--border, #e5e7eb);
-  border-radius: 18px;
-  padding: 16px;
-
-  /* ключ: этот блок заполняет оставшуюся высоту */
-  flex: 1;
-  display: flex;
-  flex-direction: column;
 }
 
 .block-top {
@@ -273,19 +242,19 @@ onMounted(load)
 }
 
 .title { font-size: 20px; font-weight: 950; }
-.sub { margin-top: 4px; color: var(--muted, #6b7280); font-size: 12px; font-weight: 700; }
-.muted { color: var(--muted, #6b7280); font-size: 12px; font-weight: 700; }
+.sub { margin-top: 4px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.muted { color: var(--muted); font-size: 12px; font-weight: 700; }
 
 .plans {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 .plan {
   text-align: left;
-  border: 1px solid var(--border, #e5e7eb);
-  background: var(--card2, #fafafa);
+  border: 1px solid var(--border);
+  background: var(--card2);
   border-radius: 16px;
   padding: 14px;
   cursor: pointer;
@@ -297,27 +266,24 @@ onMounted(load)
 .plan:hover { background: var(--card2Hover); }
 
 .plan.selected {
-  border-color: var(--primary, #2563eb);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary, #2563eb) 18%, transparent);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
 .plan-title { font-weight: 950; font-size: 16px; }
 .plan-price { font-weight: 950; font-size: 18px; }
-.plan-meta { color: var(--muted, #6b7280); font-weight: 800; font-size: 12px; }
+.plan-meta { color: var(--muted); font-weight: 800; font-size: 12px; }
 
-.plans-footer {
-  margin-top: auto; /* кнопка уедет вниз блока */
-  padding-top: 14px;
+.actions {
+  margin-top: 14px;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
+  justify-content: center;
 }
 
 .btn {
-  border: 1px solid var(--border, #e5e7eb);
-  background: var(--card, #fff);
-  color: var(--text, #111827);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
   border-radius: 12px;
   padding: 10px 12px;
   cursor: pointer;
@@ -325,10 +291,7 @@ onMounted(load)
   font-size: 12px;
 }
 .btn:disabled { opacity: .6; cursor: not-allowed; }
-.btn.primary { background: var(--primary, #2563eb); border-color: var(--primary, #2563eb); color: var(--primaryText, #fff); }
-
-.picked { font-size: 12px; color: var(--muted, #6b7280); font-weight: 800; }
-.picked-link { font-size: 12px; color: var(--muted, #6b7280); font-weight: 700; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: var(--primaryText); }
 
 .alert.error {
   margin-top: 10px;
@@ -341,8 +304,13 @@ onMounted(load)
   font-weight: 800;
 }
 
-@media (max-width: 980px) {
+@media (max-width: 640px) {
   .plans { grid-template-columns: 1fr; }
-  .slide { flex-basis: 72vw; }
+}
+
+@media (max-width: 640px) {
+  .gallery { grid-template-columns: 1fr; }
+  .plans { grid-template-columns: 1fr; }
+  .h1 { font-size: 30px; }
 }
 </style>

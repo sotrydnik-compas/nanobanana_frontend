@@ -17,10 +17,20 @@ const route = useRoute()
 
 const isAuthed = computed(() => !!auth.state.accessToken)
 const email = computed(() => props.user?.email || 'Аккаунт')
+const isHome = computed(() => route.name === 'home')
 
 const requestsLeft = ref(null)
 const balanceBusy = ref(false)
 let balanceTimer = null
+
+const menuOpen = ref(false)
+
+function closeMenu() {
+  menuOpen.value = false
+}
+function toggleMenu() {
+  menuOpen.value = !menuOpen.value
+}
 
 async function loadBalanceSafe() {
   if (!isAuthed.value) return
@@ -49,10 +59,12 @@ function stopBalancePolling() {
 }
 
 async function goHome() {
+  closeMenu()
   await router.push({ name: 'home' })
 }
 
 async function goChat() {
+  closeMenu()
   await router.push({ name: 'chat' })
 }
 
@@ -65,23 +77,27 @@ async function goRegister() {
 }
 
 async function goPayments() {
+  closeMenu()
   await router.push({ name: 'payments' })
 }
 
 async function goAccount() {
+  closeMenu()
   await router.push({ name: 'account' })
 }
 
 async function goAdmin() {
+  closeMenu()
   await router.push({ name: 'admin' })
 }
 
 async function goSection(hash) {
-  // всегда ведем на /home + якорь
+  closeMenu()
   await router.push({ name: 'home', hash })
 }
 
 async function clickLogout() {
+  closeMenu()
   const ok = await confirm({
     title: 'Выйти из аккаунта?',
     text: 'Вы будете перенаправлены на страницу входа.',
@@ -92,15 +108,20 @@ async function clickLogout() {
   emit('logout')
 }
 
+function onKeyDown(e) {
+  if (e.key === 'Escape') closeMenu()
+}
+
 onMounted(async () => {
-  // если залогинен — подгрузить баланс
+  window.addEventListener('keydown', onKeyDown)
+
+  // баланс нужен только когда залогинен (на /home мы просто не показываем, но данные пусть обновляются)
   if (isAuthed.value) {
     await loadBalanceSafe()
     startBalancePolling()
   }
 })
 
-// если токены появились/пропали — включаем/выключаем polling
 watch(isAuthed, async (v) => {
   if (v) {
     await loadBalanceSafe()
@@ -111,7 +132,11 @@ watch(isAuthed, async (v) => {
   }
 })
 
-// после перехода на payments — баланс часто меняется: обновим
+watch(
+  () => route.fullPath,
+  () => closeMenu()
+)
+
 watch(
   () => route.name,
   async (name) => {
@@ -122,6 +147,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKeyDown)
   stopBalancePolling()
 })
 </script>
@@ -135,7 +161,14 @@ onBeforeUnmount(() => {
 
     <!-- CENTER -->
     <div class="center">
-      <template v-if="!isAuthed">
+      <!-- На Home: всегда якоря -->
+      <template v-if="isHome">
+        <button class="link" type="button" @click="goSection('#about')">Описание</button>
+        <button class="link" type="button" @click="goSection('#plans')">Тарифы</button>
+      </template>
+
+      <!-- Вне Home: текущая логика -->
+      <template v-else-if="!isAuthed">
         <button class="link" type="button" @click="goSection('#about')">Описание</button>
         <button class="link" type="button" @click="goSection('#plans')">Тарифы</button>
       </template>
@@ -151,22 +184,53 @@ onBeforeUnmount(() => {
 
     <!-- RIGHT -->
     <div class="right">
+      <!-- Неавторизован: вход/регистрация без меню -->
       <template v-if="!isAuthed">
         <button class="btn" type="button" @click="goLogin">Вход</button>
         <button class="btn primary" type="button" @click="goRegister">Регистрация</button>
       </template>
 
       <template v-else>
-        <button
-          v-if="props.user?.role === 'admin'"
-          class="btn"
-          type="button"
-          @click="goAdmin"
-        >
-          Админ-панель
-        </button>
-        <button class="btn" type="button" @click="goAccount">{{ email }}</button>
-        <button class="btn" type="button" @click="clickLogout">Выйти</button>
+        <!-- Авторизован на Home: всё справа в бургер -->
+        <template v-if="isHome">
+          <button class="icon-btn" type="button" @click="toggleMenu" aria-label="Меню">
+            <span class="icon-lines" />
+          </button>
+
+          <div v-if="menuOpen" class="menu-overlay" @click.self="closeMenu">
+            <div class="menu-panel">
+              <button class="menu-item" type="button" @click="goChat">Чат</button>
+              <button class="menu-item" type="button" @click="goPayments">Платежи</button>
+              <button class="menu-item" type="button" @click="goAccount">Аккаунт ({{ email }})</button>
+              <button
+                v-if="props.user?.role === 'admin'"
+                class="menu-item"
+                type="button"
+                @click="goAdmin"
+              >
+                Админ-панель
+              </button>
+
+              <div class="menu-sep" />
+
+              <button class="menu-item danger" type="button" @click="clickLogout">Выйти</button>
+            </div>
+          </div>
+        </template>
+
+        <!-- Авторизован не на Home: как было -->
+        <template v-else>
+          <button
+            v-if="props.user?.role === 'admin'"
+            class="btn"
+            type="button"
+            @click="goAdmin"
+          >
+            Админ-панель
+          </button>
+          <button class="btn" type="button" @click="goAccount">{{ email }}</button>
+          <button class="btn" type="button" @click="clickLogout">Выйти</button>
+        </template>
       </template>
     </div>
   </header>
@@ -198,6 +262,8 @@ onBeforeUnmount(() => {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .right {
@@ -247,8 +313,96 @@ onBeforeUnmount(() => {
   color: var(--primaryText);
 }
 
-@media (max-width: 860px) {
+/* burger */
+.icon-btn {
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 12px;
+  width: 40px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.icon-lines {
+  width: 18px;
+  height: 12px;
+  display: inline-block;
+  position: relative;
+}
+.icon-lines::before,
+.icon-lines::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text);
+  opacity: .9;
+}
+.icon-lines::before { top: 0; box-shadow: 0 5px 0 0 var(--text); }
+.icon-lines::after { bottom: 0; }
+
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.20);
+  z-index: 60;
+}
+
+.menu-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(320px, 86vw);
+  height: 100dvh;
+  background: var(--card);
+  border-left: 1px solid var(--border);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transform: translateX(0);
+}
+
+.menu-item {
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 13px;
+}
+.menu-item:hover { background: var(--card2Hover); }
+.menu-item.danger { border-color: var(--dangerBorder); background: var(--dangerBg); color: var(--dangerText); }
+
+.menu-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 0;
+}
+
+@media (min-width: 861px) {
+  /* desktop: делаем меню dropdown (без drawer-ощущения) */
+  .menu-overlay { background: transparent; }
+  .menu-panel {
+    top: 56px;
+    right: 16px;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 280px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  }
+}
+
+@media (max-width: 640px) {
   .bar { grid-template-columns: auto 1fr auto; }
-  .center { gap: 6px; }
+  .right { gap: 6px; }
+  .btn { padding: 8px 10px; }
 }
 </style>
