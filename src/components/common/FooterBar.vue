@@ -69,6 +69,7 @@ onMounted(() => {
   align-items: center;
   font-size: 12px;
   color: var(--muted);
+  margin-top: auto;
 }
 
 .left { justify-self: start; }

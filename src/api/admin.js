@@ -41,6 +41,11 @@ export const adminApi = {
     getBatch: (batchId, include_items = true) =>
       apiJson(`${aiRoot}/admin/batches/${encodeURIComponent(batchId)}${qs({ include_items })}`),
 
+    getSamples: (page = 1, page_size = 10) =>
+        apiJson(`
+          ${aiRoot}/admin/samples/?page=${page}&page_size=${page_size}`
+        ),
+
     uploadSamples: (files = []) => {
       const f = new FormData()
       for (const file of (files || [])) f.append('files', file, file.name)

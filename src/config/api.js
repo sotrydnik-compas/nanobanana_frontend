@@ -44,6 +44,7 @@ export const endpoints = {
     cancelBatch: (id) => `/api/v1/ai/batches/${id}/cancel`,
 
     samples: '/api/v1/ai/samples',
+    renderTemplate: (templateName) => `/api/v1/ai/prompts/render/template?template_name=${encodeURIComponent(templateName)}`,
 
     chats: '/api/v1/ai/chats',
     chat: (id) => `/api/v1/ai/chats/${encodeURIComponent(id)}`,

@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import { auth } from '../stores/auth'
 import { confirm } from '../utils/confirm'
 import { adminApi } from '../api/admin'
-import { aiApi } from '../api/ai'
 import { accountApi } from '../api/account'
 
 auth.init()
@@ -27,11 +26,70 @@ const tabs = [
 ]
 const tab = ref('users')
 
-function setTab(k) {
+function yesNo(v) {
+  if (v === true || v === 'true') return 'Да'
+  if (v === false || v === 'false') return 'Нет'
+  return '—'
+}
+function roleRu(r) {
+  if (r === 'admin') return 'Администратор'
+  if (r === 'user') return 'Пользователь'
+  return r || '—'
+}
+function pad2(n) {
+  return String(n).padStart(2, '0')
+}
+function formatMsk(dt) {
+  if (!dt) return '—'
+  const s = String(dt)
+  const hasTz = /Z$|[+-]\d\d:\d\d$/.test(s)
+  const d = new Date(hasTz ? s : (s + 'Z')) // если TZ нет — считаем UTC
+  if (Number.isNaN(d.getTime())) return s
+
+  const msk = new Date(d.getTime() + 3 * 60 * 60 * 1000)
+
+  const DD = pad2(msk.getUTCDate())
+  const MM = pad2(msk.getUTCMonth() + 1)
+  const YYYY = msk.getUTCFullYear()
+  const hh = pad2(msk.getUTCHours())
+  const mm = pad2(msk.getUTCMinutes())
+  const ss = pad2(msk.getUTCSeconds())
+
+  return `${DD}.${MM}.${YYYY}, ${hh}:${mm}:${ss}`
+}
+
+// индекс пользователей для селектов (balances/batches) и отображения email вместо id
+const userIndex = ref([])
+const usersById = computed(() => {
+  const src = (userIndex.value?.length ? userIndex.value : users.items) || []
+  const m = {}
+  for (const u of src) {
+    const key = u?.id ?? u?.user_id ?? u?.uuid
+    if (key) m[String(key)] = u.email
+  }
+  return m
+})
+const userSelectItems = computed(() => (userIndex.value?.length ? userIndex.value : users.items))
+function userLabel(id) {
+  const key = id == null ? '' : String(id)
+  return usersById.value[key] || id
+}
+async function ensureUserIndex() {
+  if (userIndex.value.length) return
+  try {
+    const r = await adminApi.auth.listUsers({ limit: 2000, offset: 0 })
+    userIndex.value = r?.items || []
+  } catch {
+    // не валим UI
+  }
+}
+
+async function setTab(k) {
   tab.value = k
   errorText.value = ''
   infoText.value = ''
-  loadCurrent()
+  if (k === 'balances' || k === 'batches') await ensureUserIndex()
+  await loadCurrent()
 }
 
 // ---- USERS
@@ -175,7 +233,7 @@ async function logoutAllUser(userId) {
 async function deactivateUser(userId) {
   const ok = await confirm({
     title: 'Деактивировать пользователя?',
-    text: 'Пользователь станет is_active=false и все refresh-сессии будут отозваны.',
+    text: 'Пользователь станет неактивным и все refresh-сессии будут отозваны.',
     danger: true,
     yesText: 'Деактивировать',
     noText: 'Отмена',
@@ -198,7 +256,7 @@ async function deactivateUser(userId) {
 const plans = ref([])
 const planCreate = reactive({ title: '', price_minor: 0, requests_total: 100, currency: 'RUB', is_active: true })
 const planEditId = ref('')
-const planEdit = reactive({ title: '', price_minor: '', requests_total: '', currency: '', is_active: '' })
+const planEdit = reactive({ title: '', price_minor: '', requests_total: '', currency: 'RUB', is_active: '' })
 
 async function loadPlans() {
   busy.value = true
@@ -215,7 +273,7 @@ function startEditPlan(p) {
   planEdit.title = p.title
   planEdit.price_minor = String(p.price_minor)
   planEdit.requests_total = String(p.requests_total)
-  planEdit.currency = p.currency
+  planEdit.currency = 'RUB'
   planEdit.is_active = String(p.is_active)
 }
 function cancelEditPlan() {
@@ -223,7 +281,7 @@ function cancelEditPlan() {
   planEdit.title = ''
   planEdit.price_minor = ''
   planEdit.requests_total = ''
-  planEdit.currency = ''
+  planEdit.currency = 'RUB'
   planEdit.is_active = ''
 }
 
@@ -238,7 +296,13 @@ async function createPlan() {
 
   busy.value = true
   try {
-    await adminApi.billing.createPlan(planCreate)
+    await adminApi.billing.createPlan({
+      title: planCreate.title,
+      price_minor: planCreate.price_minor,
+      requests_total: planCreate.requests_total,
+      currency: 'RUB',
+      is_active: planCreate.is_active,
+    })
     infoText.value = 'Тариф создан.'
     planCreate.title = ''
     planCreate.price_minor = 0
@@ -270,7 +334,7 @@ async function savePlan() {
       title: planEdit.title,
       price_minor: planEdit.price_minor === '' ? undefined : planEdit.price_minor,
       requests_total: planEdit.requests_total === '' ? undefined : planEdit.requests_total,
-      currency: planEdit.currency,
+      currency: 'RUB',
       is_active: planEdit.is_active === '' ? undefined : planEdit.is_active,
     })
     infoText.value = 'Тариф обновлён.'
@@ -310,6 +374,7 @@ const balances = reactive({ items: [], page: 1, page_size: 10, total: 0, total_p
 const balanceEdit = reactive({ user_id: '', requests_amount: 0 })
 
 async function loadBalances() {
+  await ensureUserIndex()
   busy.value = true
   try {
     const r = await adminApi.billing.listBalances({ page: balances.page, page_size: balances.page_size })
@@ -324,7 +389,7 @@ async function loadBalances() {
 async function addBalance() {
   const ok = await confirm({
     title: 'Создать баланс пользователю?',
-    text: balanceEdit.user_id,
+    text: userLabel(balanceEdit.user_id),
     yesText: 'Создать',
     noText: 'Отмена',
   })
@@ -345,7 +410,7 @@ async function addBalance() {
 async function updBalance() {
   const ok = await confirm({
     title: 'Обновить баланс пользователю?',
-    text: balanceEdit.user_id,
+    text: userLabel(balanceEdit.user_id),
     danger: true,
     yesText: 'Обновить',
     noText: 'Отмена',
@@ -398,7 +463,7 @@ const samples = ref([])
 async function loadSamples() {
   busy.value = true
   try {
-    const r = await aiApi.samples(1, 100)
+    const r = await adminApi.ai.getSamples(1, 10)
     samples.value = Array.isArray(r?.items) ? r.items : []
   } finally {
     busy.value = false
@@ -412,7 +477,7 @@ async function uploadSamples(e) {
 
   const ok = await confirm({
     title: `Загрузить ${files.length} сэмпл(ов)?`,
-    text: 'Файлы будут добавлены как is_active=false.',
+    text: 'Файлы будут добавлены как неактивные.',
     yesText: 'Загрузить',
     noText: 'Отмена',
   })
@@ -433,7 +498,7 @@ async function uploadSamples(e) {
 async function setSampleActive(s, v) {
   const ok = await confirm({
     title: v ? 'Активировать сэмпл?' : 'Деактивировать сэмпл?',
-    text: s?.id || '',
+    text: '',
     danger: !v,
     yesText: v ? 'Активировать' : 'Деактивировать',
     noText: 'Отмена',
@@ -661,6 +726,7 @@ const batches = reactive({ items: [], total: 0, limit: 50, offset: 0, status: ''
 const batchDetails = ref(null)
 
 async function loadBatches() {
+  await ensureUserIndex()
   busy.value = true
   try {
     const r = await adminApi.ai.listBatches({
@@ -701,13 +767,11 @@ async function loadCurrent() {
 }
 
 onMounted(async () => {
-  // если токена нет — уходим на логин
   if (!auth.state.accessToken) {
     await router.replace({ name: 'login' })
     return
   }
 
-  // если user по какой-то причине не успел подтянуться — попробуем добрать
   if (!auth.state.user) {
     try {
       const me = await accountApi.me()
@@ -721,6 +785,7 @@ onMounted(async () => {
     return
   }
 
+  await ensureUserIndex()
   await loadCurrent()
 })
 </script>
@@ -729,7 +794,19 @@ onMounted(async () => {
   <div class="page">
     <div class="wrap">
       <aside class="menu">
-        <div class="mh">Меню</div>
+        <div class="mh-row">
+          <div class="mh">Меню</div>
+          <button
+            class="icon-refresh"
+            type="button"
+            @click="loadCurrent"
+            :disabled="busy"
+            title="Обновить"
+            aria-label="Обновить"
+          >
+            ↻
+          </button>
+        </div>
 
         <button
           v-for="t in tabs"
@@ -741,10 +818,6 @@ onMounted(async () => {
         >
           {{ t.label }}
         </button>
-
-        <button class="mitem ghost" type="button" @click="loadCurrent" :disabled="busy">
-          Обновить
-        </button>
       </aside>
 
       <main class="content">
@@ -752,86 +825,131 @@ onMounted(async () => {
         <div v-if="tab==='users'" class="card">
           <div class="card-title">Пользователи</div>
 
-          <div class="grid2">
-            <input class="inp" v-model="users.search" placeholder="поиск email" />
-            <select class="inp" v-model="users.role">
-              <option value="">роль: все</option>
-              <option value="user">user</option>
-              <option value="admin">admin</option>
-            </select>
-            <select class="inp" v-model="users.is_active">
-              <option value="">active: все</option>
-              <option value="true">true</option>
-              <option value="false">false</option>
-            </select>
-            <select class="inp" v-model="users.email_verified">
-              <option value="">verified: все</option>
-              <option value="true">true</option>
-              <option value="false">false</option>
-            </select>
-          </div>
+          <div class="subcard">
+            <div class="subttl">Поиск</div>
 
-          <div class="row-actions">
-            <button class="btn" type="button" @click="loadUsers" :disabled="busy">Применить</button>
+            <input class="inp" v-model="users.search" placeholder="Поиск email" />
+
+            <div class="filters-row">
+              <select class="inp" v-model="users.role">
+                <option value="">Роль: все</option>
+                <option value="user">Пользователь</option>
+                <option value="admin">Администратор</option>
+              </select>
+
+              <select class="inp" v-model="users.is_active">
+                <option value="">Активен: все</option>
+                <option value="true">Да</option>
+                <option value="false">Нет</option>
+              </select>
+
+              <select class="inp" v-model="users.email_verified">
+                <option value="">Email подтверждён: все</option>
+                <option value="true">Да</option>
+                <option value="false">Нет</option>
+              </select>
+            </div>
+
+            <div class="row-actions">
+              <button class="btn" type="button" @click="loadUsers" :disabled="busy">Применить</button>
+            </div>
           </div>
 
           <div class="subcard">
-            <div class="subttl">Создать</div>
+            <div class="subttl">Создать пользователя</div>
             <div class="grid2">
-              <input class="inp" v-model="userCreate.email" placeholder="email" />
-              <input class="inp" v-model="userCreate.password" placeholder="password" />
-              <select class="inp" v-model="userCreate.role">
-                <option value="user">user</option>
-                <option value="admin">admin</option>
-              </select>
-              <select class="inp" v-model="userCreate.is_active">
-                <option :value="true">is_active=true</option>
-                <option :value="false">is_active=false</option>
-              </select>
-              <select class="inp" v-model="userCreate.email_verified">
-                <option :value="false">email_verified=false</option>
-                <option :value="true">email_verified=true</option>
-              </select>
+              <div class="field">
+                <div class="flabel">Email</div>
+                <input class="inp" v-model="userCreate.email" placeholder="email" />
+              </div>
+
+              <div class="field">
+                <div class="flabel">Пароль</div>
+                <input class="inp" v-model="userCreate.password" placeholder="Пароль" />
+              </div>
+
+              <div class="field">
+                <div class="flabel">Роль</div>
+                <select class="inp" v-model="userCreate.role">
+                  <option value="user">Пользователь</option>
+                  <option value="admin">Администратор</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <div class="flabel">Активен</div>
+                <select class="inp" v-model="userCreate.is_active">
+                  <option :value="true">Да</option>
+                  <option :value="false">Нет</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <div class="flabel">Email подтверждён</div>
+                <select class="inp" v-model="userCreate.email_verified">
+                  <option :value="false">Нет</option>
+                  <option :value="true">Да</option>
+                </select>
+              </div>
             </div>
             <button class="btn primary" type="button" @click="createUser" :disabled="busy">Создать</button>
           </div>
 
-          <div class="table">
+          <div class="table t-users">
             <div class="tr head">
-              <div>Email</div><div>Role</div><div>Active</div><div>Verified</div><div>ID</div><div></div>
+              <div>Email</div><div>Роль</div><div>Активен</div><div>Подтв.</div><div>ID</div><div>Действия</div>
             </div>
 
             <div v-for="u in users.items" :key="u.id" class="tr">
-              <div>{{ u.email }}</div>
-              <div>{{ u.role }}</div>
-              <div>{{ u.is_active }}</div>
-              <div>{{ u.email_verified }}</div>
+              <div class="clip">{{ u.email }}</div>
+              <div class="clip">{{ roleRu(u.role) }}</div>
+              <div>{{ yesNo(u.is_active) }}</div>
+              <div>{{ yesNo(u.email_verified) }}</div>
               <div class="mono">{{ u.id }}</div>
               <div class="actions">
-                <button class="mini" type="button" @click="startEditUser(u)">Edit</button>
-                <button class="mini" type="button" @click="logoutAllUser(u.id)">Logout</button>
-                <button class="mini danger" type="button" @click="deactivateUser(u.id)">Deactivate</button>
+                <button class="mini" type="button" @click="startEditUser(u)">Редакт.</button>
+                <button class="mini" type="button" @click="logoutAllUser(u.id)">Сессии</button>
+                <button class="mini danger" type="button" @click="deactivateUser(u.id)">Отключить</button>
               </div>
             </div>
           </div>
 
           <div v-if="userEditId" class="subcard">
-            <div class="subttl">Редактирование: <span class="mono">{{ userEditId }}</span></div>
+            <div class="subttl">Редактирование пользователя</div>
             <div class="grid2">
-              <input class="inp" v-model="userEdit.email" placeholder="email" />
-              <input class="inp" v-model="userEdit.password" placeholder="password (optional)" />
-              <select class="inp" v-model="userEdit.role">
-                <option value="user">user</option>
-                <option value="admin">admin</option>
-              </select>
-              <select class="inp" v-model="userEdit.is_active">
-                <option value="true">is_active=true</option>
-                <option value="false">is_active=false</option>
-              </select>
-              <select class="inp" v-model="userEdit.email_verified">
-                <option value="true">email_verified=true</option>
-                <option value="false">email_verified=false</option>
-              </select>
+              <div class="field">
+                <div class="flabel">Email</div>
+                <input class="inp" v-model="userEdit.email" placeholder="email" />
+              </div>
+
+              <div class="field">
+                <div class="flabel">Новый пароль</div>
+                <input class="inp" v-model="userEdit.password" placeholder="Новый пароль (необязательно)" />
+              </div>
+
+              <div class="field">
+                <div class="flabel">Роль</div>
+                <select class="inp" v-model="userEdit.role">
+                  <option value="user">Пользователь</option>
+                  <option value="admin">Администратор</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <div class="flabel">Активен</div>
+                <select class="inp" v-model="userEdit.is_active">
+                  <option value="true">Да</option>
+                  <option value="false">Нет</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <div class="flabel">Email подтверждён</div>
+                <select class="inp" v-model="userEdit.email_verified">
+                  <option value="true">Да</option>
+                  <option value="false">Нет</option>
+                </select>
+              </div>
             </div>
             <div class="row-actions">
               <button class="btn" type="button" @click="cancelEditUser" :disabled="busy">Отмена</button>
@@ -845,48 +963,76 @@ onMounted(async () => {
           <div class="card-title">Тарифы</div>
 
           <div class="subcard">
-            <div class="subttl">Создать</div>
+            <div class="subttl">Создать тариф</div>
             <div class="grid2">
-              <input class="inp" v-model="planCreate.title" placeholder="title" />
-              <input class="inp" type="number" v-model.number="planCreate.price_minor" placeholder="price_minor" />
-              <input class="inp" type="number" v-model.number="planCreate.requests_total" placeholder="requests_total" />
-              <input class="inp" v-model="planCreate.currency" placeholder="currency" />
-              <select class="inp" v-model="planCreate.is_active">
-                <option :value="true">active=true</option>
-                <option :value="false">active=false</option>
-              </select>
+              <div class="field">
+                <div class="flabel">Название</div>
+                <input class="inp" v-model="planCreate.title" placeholder="Название тарифа" />
+              </div>
+
+              <div class="field">
+                <div class="flabel">Запросов (токены)</div>
+                <input class="inp" type="number" v-model.number="planCreate.requests_total" placeholder="Напр. 100" />
+              </div>
+
+              <div class="field">
+                <div class="flabel">Цена (RUB)</div>
+                <input class="inp" type="number" v-model.number="planCreate.price_minor" placeholder="Напр. 999" />
+              </div>
+
+              <div class="field">
+                <div class="flabel">Активен</div>
+                <select class="inp" v-model="planCreate.is_active">
+                  <option :value="true">Да</option>
+                  <option :value="false">Нет</option>
+                </select>
+              </div>
             </div>
             <button class="btn primary" type="button" @click="createPlan" :disabled="busy">Создать</button>
           </div>
 
-          <div class="table">
+          <div class="table t-plans">
             <div class="tr head">
-              <div>Title</div><div>Req</div><div>Price</div><div>Active</div><div>ID</div><div></div>
+              <div>Название</div><div>Запр.</div><div>Цена</div><div>Активен</div><div>ID</div><div>Действия</div>
             </div>
             <div v-for="p in plans" :key="p.id" class="tr">
-              <div>{{ p.title }}</div>
+              <div class="clip">{{ p.title }}</div>
               <div>{{ p.requests_total }}</div>
-              <div>{{ p.price_minor }} {{ p.currency }}</div>
-              <div>{{ p.is_active }}</div>
+              <div>{{ p.price_minor }} RUB</div>
+              <div>{{ yesNo(p.is_active) }}</div>
               <div class="mono">{{ p.id }}</div>
               <div class="actions">
-                <button class="mini" type="button" @click="startEditPlan(p)">Edit</button>
-                <button class="mini" type="button" @click="togglePlan(p)">{{ p.is_active ? 'Deactivate' : 'Activate' }}</button>
+                <button class="mini" type="button" @click="startEditPlan(p)">Редакт.</button>
+                <button class="mini" type="button" @click="togglePlan(p)">{{ p.is_active ? 'Отключить' : 'Включить' }}</button>
               </div>
             </div>
           </div>
 
           <div v-if="planEditId" class="subcard">
-            <div class="subttl">Редактирование: <span class="mono">{{ planEditId }}</span></div>
+            <div class="subttl">Редактирование тарифа</div>
             <div class="grid2">
-              <input class="inp" v-model="planEdit.title" placeholder="title" />
-              <input class="inp" v-model="planEdit.price_minor" placeholder="price_minor" />
-              <input class="inp" v-model="planEdit.requests_total" placeholder="requests_total" />
-              <input class="inp" v-model="planEdit.currency" placeholder="currency" />
-              <select class="inp" v-model="planEdit.is_active">
-                <option value="true">active=true</option>
-                <option value="false">active=false</option>
-              </select>
+              <div class="field">
+                <div class="flabel">Название</div>
+                <input class="inp" v-model="planEdit.title" placeholder="Название тарифа" />
+              </div>
+
+              <div class="field">
+                <div class="flabel">Запросов (токены)</div>
+                <input class="inp" v-model="planEdit.requests_total" placeholder="Напр. 100" />
+              </div>
+
+              <div class="field">
+                <div class="flabel">Цена (RUB)</div>
+                <input class="inp" v-model="planEdit.price_minor" placeholder="Напр. 999" />
+              </div>
+
+              <div class="field">
+                <div class="flabel">Активен</div>
+                <select class="inp" v-model="planEdit.is_active">
+                  <option value="true">Да</option>
+                  <option value="false">Нет</option>
+                </select>
+              </div>
             </div>
             <div class="row-actions">
               <button class="btn" type="button" @click="cancelEditPlan" :disabled="busy">Отмена</button>
@@ -900,26 +1046,36 @@ onMounted(async () => {
           <div class="card-title">Балансы</div>
 
           <div class="subcard">
-            <div class="subttl">Создать/обновить</div>
+            <div class="subttl">Создать / обновить баланс</div>
             <div class="grid2">
-              <input class="inp" v-model="balanceEdit.user_id" placeholder="user_id" />
-              <input class="inp" type="number" v-model.number="balanceEdit.requests_amount" placeholder="requests_amount" />
+              <div class="field">
+                <div class="flabel">Пользователь (email)</div>
+                <select class="inp" v-model="balanceEdit.user_id">
+                  <option value="">Выберите пользователя</option>
+                  <option v-for="u in userSelectItems" :key="u.id" :value="u.id">{{ u.email }}</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <div class="flabel">Количество запросов</div>
+                <input class="inp" type="number" v-model.number="balanceEdit.requests_amount" placeholder="Напр. 100" />
+              </div>
             </div>
             <div class="row-actions">
-              <button class="btn" type="button" @click="addBalance" :disabled="busy">Создать</button>
-              <button class="btn danger" type="button" @click="updBalance" :disabled="busy">Обновить</button>
+              <button class="btn" type="button" @click="addBalance" :disabled="busy || !balanceEdit.user_id">Создать</button>
+              <button class="btn danger" type="button" @click="updBalance" :disabled="busy || !balanceEdit.user_id">Обновить</button>
               <button class="btn" type="button" @click="loadBalances" :disabled="busy">Обновить список</button>
             </div>
           </div>
 
-          <div class="table">
+          <div class="table t-balances">
             <div class="tr head">
-              <div>User</div><div>Requests</div><div>Updated</div>
+              <div>Пользователь</div><div>Запросов</div><div>Обновлён</div>
             </div>
             <div v-for="b in balances.items" :key="b.user_id" class="tr">
-              <div class="mono">{{ b.user_id }}</div>
+              <div class="clip">{{ userLabel(b.user_id) }}</div>
               <div>{{ b.requests_left }}</div>
-              <div class="mono">{{ b.updated_at }}</div>
+              <div class="mono">{{ formatMsk(b.updated_at) }}</div>
             </div>
           </div>
         </div>
@@ -931,8 +1087,14 @@ onMounted(async () => {
           <div class="subcard">
             <div class="subttl">Поиск по ID</div>
             <div class="grid2">
-              <input class="inp" v-model="paymentLookupId" placeholder="payment_id" />
-              <button class="btn" type="button" @click="getPaymentById" :disabled="busy">Найти</button>
+              <div class="field">
+                <div class="flabel">Payment ID</div>
+                <input class="inp" v-model="paymentLookupId" placeholder="payment_id" />
+              </div>
+              <div class="field">
+                <div class="flabel">&nbsp;</div>
+                <button class="btn" type="button" @click="getPaymentById" :disabled="busy">Найти</button>
+              </div>
             </div>
             <pre v-if="paymentDetails" class="pre">{{ paymentDetails }}</pre>
           </div>
@@ -941,22 +1103,22 @@ onMounted(async () => {
             <button class="btn" type="button" @click="loadPayments" :disabled="busy">Обновить список</button>
           </div>
 
-          <div class="table">
+          <div class="table t-payments">
             <div class="tr head">
-              <div>ID</div><div>Status</div><div>Amount</div><div>Created</div>
+              <div>ID</div><div>Статус</div><div>Сумма</div><div>Создан</div>
             </div>
             <div v-for="p in pay.items" :key="p.id" class="tr">
               <div class="mono">{{ p.id }}</div>
-              <div>{{ p.status }}</div>
+              <div class="clip">{{ p.status }}</div>
               <div>{{ p.amount_minor }} {{ p.currency }}</div>
-              <div class="mono">{{ p.created_at }}</div>
+              <div class="mono">{{ formatMsk(p.created_at) }}</div>
             </div>
           </div>
         </div>
 
         <!-- SAMPLES -->
         <div v-else-if="tab==='samples'" class="card">
-          <div class="card-title">Сэмплы (главная)</div>
+          <div class="card-title">Сэмплы</div>
 
           <div class="row-actions">
             <input class="file" type="file" multiple accept="image/jpeg,image/png,image/webp" @change="uploadSamples" />
@@ -967,11 +1129,15 @@ onMounted(async () => {
             <div v-for="s in samples" :key="s.id" class="sample">
               <img :src="s.url" alt="sample" />
               <div class="meta">
-                <div class="mono">{{ s.id }}</div>
+                <div class="status">{{ s.is_active ? 'Активен' : 'Неактивен' }}</div>
                 <div class="minirow">
-                  <button class="mini" type="button" @click="setSampleActive(s, true)" :disabled="busy">On</button>
-                  <button class="mini" type="button" @click="setSampleActive(s, false)" :disabled="busy">Off</button>
-                  <button class="mini danger" type="button" @click="deleteSample(s)" :disabled="busy">Delete</button>
+                  <button class="mini" :class="{ active: !!s.is_active }" type="button" @click="setSampleActive(s, true)" :disabled="busy">
+                    Вкл
+                  </button>
+                  <button class="mini" :class="{ active: !s.is_active }" type="button" @click="setSampleActive(s, false)" :disabled="busy">
+                    Выкл
+                  </button>
+                  <button class="mini danger" type="button" @click="deleteSample(s)" :disabled="busy">Удалить</button>
                 </div>
               </div>
             </div>
@@ -985,42 +1151,62 @@ onMounted(async () => {
           <div class="subcard">
             <div class="subttl">Создать шаблон</div>
             <div class="grid2">
-              <input class="inp" v-model="tplCreate.name" placeholder="name (unique)" />
-              <select class="inp" v-model="tplCreate.is_active">
-                <option :value="true">active=true</option>
-                <option :value="false">active=false</option>
-              </select>
+              <div class="field">
+                <div class="flabel">Название (уникальное)</div>
+                <input class="inp" v-model="tplCreate.name" placeholder="Название" />
+              </div>
+
+              <div class="field">
+                <div class="flabel">Активен</div>
+                <select class="inp" v-model="tplCreate.is_active">
+                  <option :value="true">Да</option>
+                  <option :value="false">Нет</option>
+                </select>
+              </div>
             </div>
-            <textarea class="ta" rows="4" v-model="tplCreate.template_text" placeholder="template_text" />
+            <div class="field" style="margin-top:10px;">
+              <div class="flabel">Текст шаблона</div>
+              <textarea class="ta" rows="4" v-model="tplCreate.template_text" placeholder="Текст шаблона" />
+            </div>
             <button class="btn primary" type="button" @click="createTemplate" :disabled="busy">Создать</button>
           </div>
 
-          <div class="table">
+          <div class="table t-templates">
             <div class="tr head">
-              <div>Name</div><div>Active</div><div>Variants</div><div>ID</div><div></div>
+              <div>Название</div><div>Активен</div><div>Вариантов</div><div>ID</div><div>Действия</div>
             </div>
             <div v-for="t in templates.items" :key="t.id" class="tr">
-              <div>{{ t.name }}</div>
-              <div>{{ t.is_active }}</div>
+              <div class="clip">{{ t.name }}</div>
+              <div>{{ yesNo(t.is_active) }}</div>
               <div>{{ t.variants_count }}</div>
               <div class="mono">{{ t.id }}</div>
               <div class="actions">
-                <button class="mini" type="button" @click="openTemplate(t)">Open</button>
+                <button class="mini" type="button" @click="openTemplate(t)">Открыть</button>
               </div>
             </div>
           </div>
 
           <div v-if="selectedTemplateId" class="subcard">
-            <div class="subttl">Шаблон: <span class="mono">{{ selectedTemplateId }}</span></div>
+            <div class="subttl">Шаблон</div>
 
             <div class="grid2">
-              <input class="inp" v-model="selectedTemplate.name" placeholder="name" />
-              <select class="inp" v-model="selectedTemplate.is_active">
-                <option :value="true">active=true</option>
-                <option :value="false">active=false</option>
-              </select>
+              <div class="field">
+                <div class="flabel">Название</div>
+                <input class="inp" v-model="selectedTemplate.name" placeholder="Название" />
+              </div>
+              <div class="field">
+                <div class="flabel">Активен</div>
+                <select class="inp" v-model="selectedTemplate.is_active">
+                  <option :value="true">Да</option>
+                  <option :value="false">Нет</option>
+                </select>
+              </div>
             </div>
-            <textarea class="ta" rows="4" v-model="selectedTemplate.template_text" />
+
+            <div class="field" style="margin-top:10px;">
+              <div class="flabel">Текст шаблона</div>
+              <textarea class="ta" rows="4" v-model="selectedTemplate.template_text" placeholder="Текст шаблона" />
+            </div>
 
             <div class="row-actions">
               <button class="btn primary" type="button" @click="saveTemplate" :disabled="busy">Сохранить</button>
@@ -1030,57 +1216,74 @@ onMounted(async () => {
             <div class="subttl" style="margin-top:12px;">Варианты</div>
 
             <div class="grid2">
-              <input class="inp" v-model="variantCreate.key" placeholder="key" />
-              <input class="inp" v-model="variantCreate.label" placeholder="label" />
-              <input class="inp" type="number" v-model.number="variantCreate.sort_order" placeholder="sort_order" />
-              <select class="inp" v-model="variantCreate.is_active">
-                <option :value="true">active=true</option>
-                <option :value="false">active=false</option>
-              </select>
+              <div class="field">
+                <div class="flabel">Ключ</div>
+                <input class="inp" v-model="variantCreate.key" placeholder="Ключ" />
+              </div>
+              <div class="field">
+                <div class="flabel">Название</div>
+                <input class="inp" v-model="variantCreate.label" placeholder="Название" />
+              </div>
+              <div class="field">
+                <div class="flabel">Порядок</div>
+                <input class="inp" type="number" v-model.number="variantCreate.sort_order" placeholder="Порядок" />
+              </div>
+              <div class="field">
+                <div class="flabel">Активен</div>
+                <select class="inp" v-model="variantCreate.is_active">
+                  <option :value="true">Да</option>
+                  <option :value="false">Нет</option>
+                </select>
+              </div>
             </div>
             <button class="btn" type="button" @click="createVariant" :disabled="busy">Добавить вариант</button>
 
-            <div class="table" style="margin-top:10px;">
+            <div class="table t-variants" style="margin-top:10px;">
               <div class="tr head">
-                <div>Key</div><div>Label</div><div>Order</div><div>Active</div><div>ID</div><div></div>
+                <div>Ключ</div><div>Название</div><div>Порядок</div><div>Активен</div><div>ID</div><div>Действия</div>
               </div>
               <div v-for="v in variants" :key="v.id" class="tr">
-                <div>{{ v.key }}</div>
-                <div>{{ v.label }}</div>
+                <div class="clip">{{ v.key }}</div>
+                <div class="clip">{{ v.label }}</div>
                 <div>{{ v.sort_order }}</div>
-                <div>{{ v.is_active }}</div>
+                <div>{{ yesNo(v.is_active) }}</div>
                 <div class="mono">{{ v.id }}</div>
                 <div class="actions">
-                  <button class="mini" type="button" @click="toggleVariant(v)" :disabled="busy">{{ v.is_active ? 'Off' : 'On' }}</button>
-                  <button class="mini danger" type="button" @click="deleteVariant(v)" :disabled="busy">Delete</button>
+                  <button class="mini" type="button" @click="toggleVariant(v)" :disabled="busy">{{ v.is_active ? 'Отключить' : 'Включить' }}</button>
+                  <button class="mini danger" type="button" @click="deleteVariant(v)" :disabled="busy">Удалить</button>
                 </div>
               </div>
             </div>
-
           </div>
         </div>
 
         <!-- BATCHES -->
         <div v-else-if="tab==='batches'" class="card">
-          <div class="card-title">Пакетные задачи</div>
+          <div class="card-title">Пакеты</div>
 
           <div class="grid2">
-            <input class="inp" v-model="batches.status" placeholder="status (optional)" />
-            <button class="btn" type="button" @click="loadBatches" :disabled="busy">Обновить</button>
+            <div class="field">
+              <div class="flabel">Статус (необязательно)</div>
+              <input class="inp" v-model="batches.status" placeholder="Напр. completed" />
+            </div>
+            <div class="field">
+              <div class="flabel">&nbsp;</div>
+              <button class="btn" type="button" @click="loadBatches" :disabled="busy">Обновить</button>
+            </div>
           </div>
 
-          <div class="table" style="margin-top:10px;">
+          <div class="table t-batches" style="margin-top:10px;">
             <div class="tr head">
-              <div>Status</div><div>Total</div><div>Processed</div><div>User</div><div>Batch</div><div></div>
+              <div>Статус</div><div>Всего</div><div>Готово</div><div>Пользователь</div><div>Batch</div><div>Действия</div>
             </div>
             <div v-for="b in batches.items" :key="b.batch_id" class="tr">
-              <div>{{ b.status }}</div>
+              <div class="clip">{{ b.status }}</div>
               <div>{{ b.total }}</div>
               <div>{{ b.processed }}</div>
-              <div class="mono">{{ b.user_id }}</div>
+              <div class="clip">{{ userLabel(b.user_id) }}</div>
               <div class="mono">{{ b.batch_id }}</div>
               <div class="actions">
-                <button class="mini" type="button" @click="openBatch(b)">Open</button>
+                <button class="mini" type="button" @click="openBatch(b)">Открыть</button>
               </div>
             </div>
           </div>
@@ -1101,8 +1304,8 @@ onMounted(async () => {
 <style scoped>
 .page{
   width: 100%;
-  min-height: 100%;
   display:flex;
+  overflow-x: hidden;
 }
 .wrap{
   width: 100%;
@@ -1110,11 +1313,11 @@ onMounted(async () => {
   margin: 0 auto;
   padding: 18px;
   box-sizing: border-box;
-
   display: flex;
   gap: 12px;
-  min-height: 100%;
+  min-width: 0;
 }
+
 .menu{
   flex: 0 0 220px;
   background: var(--card);
@@ -1123,7 +1326,28 @@ onMounted(async () => {
   padding: 12px;
   height: fit-content;
 }
-.mh{ font-weight: 950; margin-bottom: 10px; }
+.mh-row{
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.mh{ font-weight: 950; }
+.icon-refresh{
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--text);
+  border-radius: 12px;
+  width: 40px;
+  height: 34px;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+  font-weight: 950;
+}
+.icon-refresh:disabled{ opacity:.6; cursor: not-allowed; }
+
 .mitem{
   width: 100%;
   text-align: left;
@@ -1141,7 +1365,6 @@ onMounted(async () => {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(59,130,246,.18);
 }
-.mitem.ghost{ background: var(--card); }
 
 .content{
   flex: 1;
@@ -1149,6 +1372,7 @@ onMounted(async () => {
   display:flex;
   flex-direction: column;
 }
+
 .card{
   background: var(--card);
   border: 1px solid var(--border);
@@ -1170,8 +1394,28 @@ onMounted(async () => {
   display:grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  align-items: center;
+  align-items: end;
 }
+.filters-row{
+  margin-top: 10px;
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.field{
+  display:flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.flabel{
+  font-weight: 900;
+  font-size: 12px;
+  color: var(--theadText);
+  opacity: .95;
+}
+
 .row-actions{ margin-top: 10px; display:flex; gap:10px; flex-wrap: wrap; }
 
 .inp, .ta{
@@ -1183,6 +1427,7 @@ onMounted(async () => {
   border-radius: 12px;
   padding: 10px 12px;
   font-size: 13px;
+  min-width: 0;
 }
 .ta{ resize: vertical; }
 
@@ -1199,24 +1444,51 @@ onMounted(async () => {
 .btn.primary{ background: var(--primary); border-color: var(--primary); color: var(--primaryText); }
 .btn.danger{ background: var(--dangerBg); border-color: var(--dangerBorder); color: var(--dangerText); }
 
-.table{ display:grid; gap:6px; margin-top: 12px; }
+/* TABLES */
+.table{
+  display:grid;
+  gap:6px;
+  margin-top: 12px;
+  min-width: 0;
+}
 .tr{
   display:grid;
-  grid-template-columns: 1.4fr .6fr .6fr .9fr 1.3fr auto;
   gap: 10px;
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--card);
   align-items:center;
+  min-width: 0;
 }
+.tr > div{ min-width: 0; } /* ключевой фикс: иначе grid-item раздувает колонки */
 .tr.head{
   background: var(--theadBg);
   font-weight: 950;
   font-size: 12px;
   color: var(--theadText);
 }
-.actions{ display:flex; gap:8px; justify-content:flex-end; }
+.tr.head > div{
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* более “жидкие” колонки, чтобы не вылезать за карточку */
+.t-users .tr{ grid-template-columns: minmax(0,1.4fr) minmax(0,.8fr) minmax(0,.5fr) minmax(0,.55fr) minmax(0,1.2fr) minmax(0,220px); }
+.t-plans .tr{ grid-template-columns: minmax(0,1.4fr) minmax(0,.55fr) minmax(0,.7fr) minmax(0,.55fr) minmax(0,1.2fr) minmax(0,210px); }
+.t-balances .tr{ grid-template-columns: minmax(0,1.6fr) minmax(0,.6fr) minmax(0,240px); }
+.t-payments .tr{ grid-template-columns: minmax(0,1.2fr) minmax(0,.7fr) minmax(0,.8fr) minmax(0,240px); }
+.t-templates .tr{ grid-template-columns: minmax(0,1.6fr) minmax(0,.7fr) minmax(0,.7fr) minmax(0,1.2fr) minmax(0,170px); }
+.t-variants .tr{ grid-template-columns: minmax(0,.9fr) minmax(0,1.4fr) minmax(0,.6fr) minmax(0,.65fr) minmax(0,1.2fr) minmax(0,220px); }
+.t-batches .tr{ grid-template-columns: minmax(0,.9fr) minmax(0,.55fr) minmax(0,.55fr) minmax(0,1.3fr) minmax(0,1.2fr) minmax(0,160px); }
+
+.actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap: wrap; /* фикс: чтобы кнопки не раздували колонку и не “вылезали” */
+}
 .mini{
   border: 1px solid var(--border);
   background: var(--card2);
@@ -1226,14 +1498,32 @@ onMounted(async () => {
   cursor:pointer;
   font-weight: 900;
   font-size: 11px;
+  white-space: nowrap;
+}
+.mini.active{
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59,130,246,.18);
 }
 .mini.danger{ background: var(--dangerBg); border-color: var(--dangerBorder); color: var(--dangerText); }
-.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; }
+
+.mono{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap:anywhere; /* фикс: UUID не распирает колонку */
+  word-break: break-word;
+}
+
+.clip{
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .alert{ margin-top: 10px; padding: 10px 12px; border-radius: 14px; border: 1px solid; font-size: 13px; font-weight: 800; }
 .alert.error { background: var(--dangerBg); border-color: var(--dangerBorder); color: var(--dangerText); }
 .alert.ok { background: var(--successBg); border-color: var(--successBorder); color: var(--successText); }
 
+/* Samples */
 .samples{
   margin-top: 12px;
   display:grid;
@@ -1253,7 +1543,8 @@ onMounted(async () => {
   display:block;
 }
 .meta{ padding: 10px; display:flex; flex-direction:column; gap:8px; }
-.minirow{ display:flex; gap:8px; }
+.status{ font-weight: 900; font-size: 12px; color: var(--muted); }
+.minirow{ display:flex; gap:8px; flex-wrap: wrap; }
 
 .pre{
   margin: 0;
@@ -1263,12 +1554,82 @@ onMounted(async () => {
   color: var(--text);
 }
 
+/* MOBILE: делаем “ключ: значение”, чтобы было понятно что к чему */
 @media (max-width: 980px) {
   .wrap{ flex-direction: column; }
   .menu{ flex: 0 0 auto; }
   .grid2{ grid-template-columns: 1fr; }
-  .tr{ grid-template-columns: 1fr; }
-  .tr.head{ display:none; }
+  .filters-row{ grid-template-columns: 1fr; }
   .samples{ grid-template-columns: 1fr; }
+
+  .tr{ grid-template-columns: 1fr !important; }
+  .tr.head{ display:none; }
+
+  .table .tr > div{
+    display:flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+  }
+  .table .tr > div::before{
+    font-weight: 900;
+    font-size: 12px;
+    color: var(--theadText);
+    opacity: .9;
+  }
+  .actions{
+    justify-content:flex-start;
+    align-items:flex-start;
+  }
+
+  /* USERS labels */
+  .t-users .tr > div:nth-child(1)::before{ content: 'Email'; }
+  .t-users .tr > div:nth-child(2)::before{ content: 'Роль'; }
+  .t-users .tr > div:nth-child(3)::before{ content: 'Активен'; }
+  .t-users .tr > div:nth-child(4)::before{ content: 'Подтв.'; }
+  .t-users .tr > div:nth-child(5)::before{ content: 'ID'; }
+  .t-users .tr > div:nth-child(6)::before{ content: 'Действия'; }
+
+  /* PLANS labels */
+  .t-plans .tr > div:nth-child(1)::before{ content: 'Название'; }
+  .t-plans .tr > div:nth-child(2)::before{ content: 'Запросов'; }
+  .t-plans .tr > div:nth-child(3)::before{ content: 'Цена'; }
+  .t-plans .tr > div:nth-child(4)::before{ content: 'Активен'; }
+  .t-plans .tr > div:nth-child(5)::before{ content: 'ID'; }
+  .t-plans .tr > div:nth-child(6)::before{ content: 'Действия'; }
+
+  /* BALANCES labels */
+  .t-balances .tr > div:nth-child(1)::before{ content: 'Пользователь'; }
+  .t-balances .tr > div:nth-child(2)::before{ content: 'Запросов'; }
+  .t-balances .tr > div:nth-child(3)::before{ content: 'Обновлён'; }
+
+  /* PAYMENTS labels */
+  .t-payments .tr > div:nth-child(1)::before{ content: 'ID'; }
+  .t-payments .tr > div:nth-child(2)::before{ content: 'Статус'; }
+  .t-payments .tr > div:nth-child(3)::before{ content: 'Сумма'; }
+  .t-payments .tr > div:nth-child(4)::before{ content: 'Создан'; }
+
+  /* TEMPLATES labels */
+  .t-templates .tr > div:nth-child(1)::before{ content: 'Название'; }
+  .t-templates .tr > div:nth-child(2)::before{ content: 'Активен'; }
+  .t-templates .tr > div:nth-child(3)::before{ content: 'Вариантов'; }
+  .t-templates .tr > div:nth-child(4)::before{ content: 'ID'; }
+  .t-templates .tr > div:nth-child(5)::before{ content: 'Действия'; }
+
+  /* VARIANTS labels */
+  .t-variants .tr > div:nth-child(1)::before{ content: 'Ключ'; }
+  .t-variants .tr > div:nth-child(2)::before{ content: 'Название'; }
+  .t-variants .tr > div:nth-child(3)::before{ content: 'Порядок'; }
+  .t-variants .tr > div:nth-child(4)::before{ content: 'Активен'; }
+  .t-variants .tr > div:nth-child(5)::before{ content: 'ID'; }
+  .t-variants .tr > div:nth-child(6)::before{ content: 'Действия'; }
+
+  /* BATCHES labels */
+  .t-batches .tr > div:nth-child(1)::before{ content: 'Статус'; }
+  .t-batches .tr > div:nth-child(2)::before{ content: 'Всего'; }
+  .t-batches .tr > div:nth-child(3)::before{ content: 'Готово'; }
+  .t-batches .tr > div:nth-child(4)::before{ content: 'Пользователь'; }
+  .t-batches .tr > div:nth-child(5)::before{ content: 'Batch'; }
+  .t-batches .tr > div:nth-child(6)::before{ content: 'Действия'; }
 }
 </style>

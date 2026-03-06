@@ -19,6 +19,13 @@ const isAuthed = computed(() => !!auth.state.accessToken)
 const email = computed(() => props.user?.email || 'Аккаунт')
 const isHome = computed(() => route.name === 'home')
 const isChat = computed(() => route.name === 'chat')
+const isAccount = computed(() => route.name === 'account')
+const isPayments = computed(() => route.name === 'payments')
+const isAdmin = computed(() => route.name === 'admin')
+
+const burgerMode = computed(() =>
+  isHome.value || isChat.value || isAccount.value || isPayments.value || isAdmin.value
+)
 
 const requestsLeft = ref(null)
 const balanceBusy = ref(false)
@@ -180,8 +187,9 @@ onBeforeUnmount(() => {
           <span class="balance-label">запросов</span>
         </div>
 
-        <!-- ВНЕ чата можно оставить быстрые кнопки как раньше -->
-        <button v-if="!isChat" class="btn" type="button" @click="goPayments">Платежи</button>
+        <button v-if="!isChat && !isAccount && !isPayments && !isAdmin" class="btn" type="button" @click="goPayments">
+          Платежи
+        </button>
       </template>
     </div>
 
@@ -195,7 +203,7 @@ onBeforeUnmount(() => {
 
       <template v-else>
         <!-- На Home и на Chat: всё справа в бургер -->
-        <template v-if="isHome || isChat">
+        <template v-if="burgerMode">
           <button class="icon-btn" type="button" @click="toggleMenu" aria-label="Меню">
             <span class="icon-lines" />
           </button>
@@ -203,7 +211,7 @@ onBeforeUnmount(() => {
           <div v-if="menuOpen" class="menu-overlay" @click.self="closeMenu">
             <div class="menu-panel">
               <!-- На Home показываем Чат, на Chat можно не показывать -->
-              <button v-if="isHome" class="menu-item" type="button" @click="goChat">Чат</button>
+              <button v-if="!isChat" class="menu-item" type="button" @click="goChat">Чат</button>
 
               <button class="menu-item" type="button" @click="goPayments">Платежи</button>
               <button class="menu-item" type="button" @click="goAccount">Аккаунт ({{ email }})</button>
@@ -382,6 +390,8 @@ onBeforeUnmount(() => {
   cursor: pointer;
   font-weight: 900;
   font-size: 13px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .menu-item:hover { background: var(--card2Hover); }
 .menu-item.danger { border-color: var(--dangerBorder); background: var(--dangerBg); color: var(--dangerText); }

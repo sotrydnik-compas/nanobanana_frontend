@@ -120,6 +120,32 @@ function startPolling() {
   }, 30000)
 }
 
+function pad2(n) {
+  return String(n).padStart(2, '0')
+}
+
+function formatMsk(dt) {
+  if (!dt) return '—'
+  const s = String(dt)
+
+  // если нет таймзоны — считаем, что это UTC
+  const hasTz = /Z$|[+-]\d\d:\d\d$/.test(s)
+  const d = new Date(hasTz ? s : (s + 'Z'))
+  if (Number.isNaN(d.getTime())) return s
+
+  const msk = new Date(d.getTime() + 3 * 60 * 60 * 1000)
+
+  // форматируем через UTC, чтобы не зависеть от локальной TZ браузера
+  const DD = pad2(msk.getUTCDate())
+  const MM = pad2(msk.getUTCMonth() + 1)
+  const YYYY = msk.getUTCFullYear()
+  const hh = pad2(msk.getUTCHours())
+  const mm = pad2(msk.getUTCMinutes())
+  const ss = pad2(msk.getUTCSeconds())
+
+  return `${DD}.${MM}.${YYYY}, ${hh}:${mm}:${ss}`
+}
+
 
 onMounted(async () => {
   await loadAll()
@@ -196,7 +222,7 @@ onBeforeUnmount(() => {
             <span v-if="p.status==='pending'" class="mini"> (проверяем)</span>
           </div>
           <div>{{ money(p.amount_minor, p.currency) }}</div>
-          <div class="mono">{{ p.created_at }}</div>
+          <div class="mono">{{ formatMsk(p.created_at) }}</div>
         </div>
       </div>
     </div>
@@ -213,9 +239,6 @@ onBeforeUnmount(() => {
   margin: 0 auto;
   padding: 18px;
   box-sizing: border-box;
-
-  /* чтобы страница минимум заполняла пространство между TopBar и Footer */
-  min-height: 100%;
 }
 
 .top {
@@ -324,6 +347,15 @@ onBeforeUnmount(() => {
 }
 .alert.error { background: var(--dangerBg); border-color: var(--dangerBorder); color: var(--dangerText); }
 .alert.ok { background: var(--successBg); border-color: var(--successBorder); color: var(--successText); }
+
+.page { overflow-x: hidden; }
+
+.tr > div { min-width: 0; }
+
+.mono {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 
 @media (max-width: 900px) {
   .plans { grid-template-columns: 1fr; }

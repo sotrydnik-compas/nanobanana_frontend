@@ -6,6 +6,10 @@ const base = endpoints.ai.base
 export const aiApi = {
   samples: (page = 1, page_size = 10) =>
     apiJson(`${base}${endpoints.ai.samples}?page=${page}&page_size=${page_size}`),
+
+  renderPromptTemplate: (templateName) =>
+    apiJson(`${base}${endpoints.ai.renderTemplate(templateName)}`),
+
   listChats: (limit = 50, offset = 0) =>
     apiJson(`${base}${endpoints.ai.chats}?limit=${limit}&offset=${offset}`),
 

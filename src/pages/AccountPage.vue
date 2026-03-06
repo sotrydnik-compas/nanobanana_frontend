@@ -14,6 +14,13 @@ const busy = ref(false)
 const info = ref('')
 const errorText = ref('')
 
+const roleLabel = computed(() => {
+  const r = user.value?.role
+  if (r === 'admin') return 'Администратор'
+  if (r === 'user') return 'Пользователь'
+  return r || '—'
+})
+
 // refresh me (по кнопке)
 async function refreshMe() {
   info.value = ''
@@ -186,9 +193,8 @@ async function logoutAllDevices() {
       <div class="card-title">Профиль</div>
 
       <div v-if="user" class="grid">
-        <div class="row"><div class="k">ID</div><div class="v mono">{{ user.id }}</div></div>
         <div class="row"><div class="k">Email</div><div class="v">{{ user.email }}</div></div>
-        <div class="row"><div class="k">Роль</div><div class="v">{{ user.role }}</div></div>
+        <div class="row"><div class="k">Роль</div><div class="v">{{ roleLabel }}</div></div>
       </div>
 
       <div v-else class="muted">Профиль ещё загружается…</div>
@@ -300,8 +306,8 @@ async function logoutAllDevices() {
 .grid { display: grid; gap: 8px; }
 .row { display: grid; grid-template-columns: 80px 1fr; gap: 10px; align-items: center; }
 .k { color: var(--muted); font-size: 12px; font-weight: 700; }
-.v { font-size: 13px; }
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; }
+.v { font-size: 13px; overflow-wrap: anywhere; word-break: break-word; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; word-break: break-word; }
 .muted { color: var(--muted); font-size: 12px; margin-bottom: 10px; font-weight: 700; }
 
 .field { margin-bottom: 10px; }
