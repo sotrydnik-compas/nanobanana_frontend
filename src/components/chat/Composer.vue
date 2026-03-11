@@ -3,6 +3,8 @@ import { ref } from 'vue'
 
 defineProps({
   disabled: { type: Boolean, default: false },
+  inputDisabled: { type: Boolean, default: false },
+  placeholder: { type: String, default: 'Введите запрос…' },
   hint: { type: String, default: '' },
   showDownloadAll: { type: Boolean, default: false },
   downloadCount: { type: Number, default: 0 },
@@ -29,8 +31,8 @@ defineExpose({ clearPrompt })
       <textarea
         class="ta"
         v-model="prompt"
-        :disabled="disabled"
-        :placeholder="hint ? '' : 'Введите запрос…'"
+        :disabled="disabled || inputDisabled"
+        :placeholder="placeholder"
         rows="2"
       />
 

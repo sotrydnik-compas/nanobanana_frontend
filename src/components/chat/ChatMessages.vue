@@ -79,7 +79,7 @@ onBeforeUnmount(() => {
       </div>
 
       <div v-if="!messages.length && !taskInFlight" class="muted">
-        Напишите сообщение и (опционально) добавьте референсы справа.
+        Напишите сообщение и опционально добавьте референсы.
       </div>
     </div>
   </div>

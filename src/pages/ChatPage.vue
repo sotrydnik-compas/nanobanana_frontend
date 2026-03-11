@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from '../stores/auth'
 import { aiApi } from '../api/ai'
@@ -139,6 +139,68 @@ const refsState = reactive({
   urls: [],
   files: [], // File[]
 })
+
+const DEFAULT_PRODUCT_CARD_TEMPLATE =
+  'Создай мне {variant_label} для карточки товара. Заголовок: {title}. Преимущество: {advantage}'
+
+const DEFAULT_PRODUCT_CARD_VARIANTS = [
+  { key: 'Студийное', label: 'студийное фото', sort_order: 0 },
+  { key: 'Имиджевое', label: 'имиджевые варианты', sort_order: 1 },
+  { key: 'UGC', label: 'ugc пакет', sort_order: 2 },
+]
+
+const productCardTemplateText = ref(DEFAULT_PRODUCT_CARD_TEMPLATE)
+const productCardVariants = ref([...DEFAULT_PRODUCT_CARD_VARIANTS])
+const productCardConfigLoaded = ref(false)
+const productCardConfigLoading = ref(false)
+
+function applyProductCardConfig(payload) {
+  const templateText = String(payload?.template_text || '').trim()
+
+  const variants = Array.isArray(payload?.variants)
+    ? payload.variants
+        .map((v) => ({
+          key: String(v?.key || '').trim(),
+          label: String(v?.label || '').trim(),
+          sort_order: Number(v?.sort_order ?? 0),
+        }))
+        .filter((v) => v.key && v.label)
+        .sort((a, b) => a.sort_order - b.sort_order)
+    : []
+
+  productCardTemplateText.value = templateText || DEFAULT_PRODUCT_CARD_TEMPLATE
+  productCardVariants.value = variants.length ? variants : [...DEFAULT_PRODUCT_CARD_VARIANTS]
+
+  const selectedExists = productCardVariants.value.some((v) => v.key === settings.productVariant)
+  if (!selectedExists) {
+    settings.productVariant = productCardVariants.value[0]?.key || 'studio'
+  }
+}
+
+async function ensureProductCardConfig(force = false) {
+  if (productCardConfigLoading.value) return
+  if (productCardConfigLoaded.value && !force) return
+
+  productCardConfigLoading.value = true
+  try {
+    const r = await aiApi.renderPromptTemplate('product_card')
+    applyProductCardConfig(r)
+    productCardConfigLoaded.value = true
+  } catch {
+    applyProductCardConfig(null)
+  } finally {
+    productCardConfigLoading.value = false
+  }
+}
+
+watch(
+  () => settings.mode,
+  async (mode) => {
+    if (mode === 'product_card') {
+      await ensureProductCardConfig()
+    }
+  }
+)
 
 const downloadableImageUrls = computed(() => {
   const seen = new Set()
@@ -402,12 +464,17 @@ async function onDeleteChat(chatId) {
 const finalPrompt = (userPrompt) => {
   if (settings.mode !== 'product_card') return (userPrompt || '').trim()
 
-  const vLabel =
-    settings.productVariant == 'ugc' ? 'ugc пакет' :
-    settings.productVariant === 'image' ? 'имиджевые варианты' :
-    'студийное фото'
+  const selectedVariant = productCardVariants.value.find(
+    (v) => v.key === settings.productVariant
+  )
 
-  return `Создай мне ${vLabel} для карточки товара для маркетплейса. Заголовок: ${settings.title.trim()}. Преимущество этого товара: ${settings.advantage.trim()}`
+  const variantLabel = (selectedVariant?.label || '').trim()
+  const template = productCardTemplateText.value || DEFAULT_PRODUCT_CARD_TEMPLATE
+
+  return template
+    .replaceAll('{variant_label}', variantLabel)
+    .replaceAll('{title}', settings.title.trim())
+    .replaceAll('{advantage}', settings.advantage.trim())
 }
 
 function validateBeforeSend(userPrompt) {
@@ -667,6 +734,8 @@ onBeforeUnmount(() => {
             ref="composerRef"
             :disabled="taskInFlight || currentChatStatus === 'closed'"
             :hint="currentChatStatus === 'closed' ? 'Чат закрыт — создайте новый' : ''"
+            :inputDisabled="settings.mode === 'product_card'"
+            :placeholder="settings.mode === 'product_card' ? 'Промпт формируется из параметров' : 'Введите запрос…'"
             :showDownloadAll="downloadableImageUrls.length > 0"
             :downloadCount="downloadableImageUrls.length"
             @send="onSend"
@@ -695,6 +764,7 @@ onBeforeUnmount(() => {
           v-model:settings="settings"
           v-model:urls="refsState.urls"
           v-model:files="refsState.files"
+          :productCardVariants="productCardVariants"
         />
       </aside>
 
@@ -720,6 +790,7 @@ onBeforeUnmount(() => {
             v-model:settings="settings"
             v-model:urls="refsState.urls"
             v-model:files="refsState.files"
+            :productCardVariants="productCardVariants"
           />
         </div>
       </div>

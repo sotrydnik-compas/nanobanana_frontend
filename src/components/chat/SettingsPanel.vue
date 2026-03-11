@@ -1,28 +1,89 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = defineProps({
   settings: { type: Object, required: true },
   urls: { type: Array, required: true },
   files: { type: Array, required: true }, // File[]
+  productCardVariants: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['update:settings', 'update:urls', 'update:files'])
 
-const aspectPrimary = ['1:1', '3:4', '9:16', '16:9', '4:3']
-const showAllAspect = ref(false)
-
-const aspectOptions = [
-  '2:3','3:2','4:5','5:4','21:9','auto'
+const DEFAULT_PRODUCT_CARD_VARIANTS = [
+  { key: 'Студийное', label: 'студийное фото', sort_order: 0 },
+  { key: 'Имиджевое', label: 'имиджевые варианты', sort_order: 1 },
+  { key: 'UGC', label: 'ugc пакет', sort_order: 2 },
 ]
+
+const aspectPrimary = [
+  { value: '1:1', label: '1:1', iconClass: 'ratio-1-1' },
+  { value: '3:4', label: '3:4', iconClass: 'ratio-3-4' },
+  { value: '9:16', label: '9:16', iconClass: 'ratio-9-16' },
+  { value: '16:9', label: '16:9', iconClass: 'ratio-16-9' },
+  { value: '4:3', label: '4:3', iconClass: 'ratio-4-3' },
+]
+
+const aspectExtra = [
+  { value: '2:3', label: '2:3', iconClass: 'ratio-2-3' },
+  { value: '3:2', label: '3:2', iconClass: 'ratio-3-2' },
+  { value: '4:5', label: '4:5', iconClass: 'ratio-4-5' },
+  { value: '5:4', label: '5:4', iconClass: 'ratio-5-4' },
+  { value: '21:9', label: '21:9', iconClass: 'ratio-21-9' },
+  { value: 'auto', label: 'auto', iconClass: 'ratio-auto' },
+]
+
+const resolutionOptions = [
+  { value: '1K', title: 'Стандартное', sub: '(1K)' },
+  { value: '2K', title: 'Высокое', sub: '(2K)' },
+  { value: '4K', title: 'Максимальное', sub: '(4K)' },
+]
+
+const sortedProductCardVariants = computed(() => {
+  const src = props.productCardVariants?.length
+    ? props.productCardVariants
+    : DEFAULT_PRODUCT_CARD_VARIANTS
+
+  return [...src].sort((a, b) => Number(a?.sort_order ?? 0) - Number(b?.sort_order ?? 0))
+})
+
+const showAllAspect = ref(false)
 
 const fileInput = ref(null)
 const urlInput = ref('')
-const maxSizeMB = 10 // из ai settings MAX_UPLOAD_MB
-const allowed = ['image/jpeg','image/png','image/webp']
+const maxSizeMB = 10
+const allowed = ['image/jpeg', 'image/png', 'image/webp']
 
 const maxTotal = computed(() => (props.settings.mode === 'batch' ? 100 : 7))
 const totalRefs = computed(() => (props.urls.length || 0) + (props.files.length || 0))
-const remaining = computed(() => Math.max(0, maxTotal - totalRefs.value))
+const remaining = computed(() => Math.max(0, maxTotal.value - totalRefs.value))
+
+const filePreviews = ref([])
+
+function cleanupFilePreviews() {
+  for (const url of filePreviews.value) {
+    try { URL.revokeObjectURL(url) } catch {}
+  }
+  filePreviews.value = []
+}
+
+watch(
+  () => props.files,
+  (files) => {
+    cleanupFilePreviews()
+    filePreviews.value = (files || []).map((f) => {
+      try {
+        return URL.createObjectURL(f)
+      } catch {
+        return ''
+      }
+    })
+  },
+  { immediate: true, deep: true }
+)
+
+onBeforeUnmount(() => {
+  cleanupFilePreviews()
+})
 
 function openPicker() {
   if (remaining.value <= 0) return
@@ -39,19 +100,22 @@ function addUrl() {
   if (remaining.value <= 0) return
 
   try { new URL(u) } catch { return }
+
   if (!props.urls.includes(u)) {
     emit('update:urls', [...props.urls, u])
   }
+
   urlInput.value = ''
 }
 
 function removeUrl(u) {
-  emit('update:urls', props.urls.filter(x => x !== u))
+  emit('update:urls', props.urls.filter((x) => x !== u))
 }
 
 function addFiles(fileList) {
   const arr = Array.from(fileList || [])
   if (!arr.length) return
+
   let left = remaining.value
   if (left <= 0) return
 
@@ -63,6 +127,7 @@ function addFiles(fileList) {
     next.push(f)
     left--
   }
+
   emit('update:files', next)
 }
 
@@ -75,6 +140,12 @@ function removeFile(idx) {
 function onPickFiles(e) {
   addFiles(e.target.files)
   e.target.value = ''
+}
+
+function onThumbError(e) {
+  const item = e.target?.closest('.preview-item')
+  if (item) item.dataset.broken = '1'
+  e.target.style.opacity = '0'
 }
 </script>
 
@@ -90,7 +161,7 @@ function onPickFiles(e) {
 
     <div class="section">
       <div class="lbl">Режим</div>
-      <div class="seg">
+      <div class="seg mode-seg">
         <button class="segbtn" :class="{ active: settings.mode === 'standard' }" @click="settings.mode='standard'">
           Стандартный
         </button>
@@ -105,53 +176,79 @@ function onPickFiles(e) {
 
     <div class="section" v-if="settings.mode === 'product_card'">
       <div class="lbl">Вариант</div>
-      <div class="seg">
-        <button class="segbtn" :class="{ active: settings.productVariant==='studio' }" @click="settings.productVariant='studio'">Студийное</button>
-        <button class="segbtn" :class="{ active: settings.productVariant==='image' }" @click="settings.productVariant='image'">Имиджевое</button>
-        <button class="segbtn" :class="{ active: settings.productVariant==='ugc' }" @click="settings.productVariant='ugc'">UGC</button>
+      <div class="seg variant-seg">
+        <button
+          v-for="variant in sortedProductCardVariants"
+          :key="variant.key"
+          class="segbtn"
+          :class="{ active: settings.productVariant === variant.key }"
+          @click="settings.productVariant = variant.key"
+        >
+          {{ variant.key }}
+        </button>
       </div>
 
-      <div class="lbl" style="margin-top:10px;">Заголовок *</div>
+      <div class="lbl field-lbl">Заголовок *</div>
       <input class="inp" v-model="settings.title" placeholder="Пробуждение силы" />
 
-      <div class="lbl" style="margin-top:10px;">Преимущество *</div>
+      <div class="lbl field-lbl">Преимущество *</div>
       <textarea class="ta" v-model="settings.advantage" rows="3" placeholder="Кружка из стекла..." />
     </div>
 
     <div class="section">
       <div class="lbl">Соотношение сторон</div>
 
-      <div class="aspect-scroll">
+      <div class="aspect-grid">
         <button
           v-for="o in aspectPrimary"
-          :key="o"
-          class="segbtn"
-          :class="{ active: settings.aspectRatio === o }"
-          @click="settings.aspectRatio = o"
-        >{{ o }}</button>
+          :key="o.value"
+          class="segbtn aspectbtn"
+          :class="{ active: settings.aspectRatio === o.value }"
+          @click="settings.aspectRatio = o.value"
+        >
+          <span class="aspect-icon-wrap">
+            <span class="aspect-icon" :class="o.iconClass"></span>
+          </span>
+          <span class="aspect-text">{{ o.label }}</span>
+        </button>
 
-        <button class="segbtn" @click="showAllAspect = !showAllAspect">
-          {{ showAllAspect ? 'Свернуть' : 'Ещё' }}
+        <button class="segbtn aspectbtn" @click="showAllAspect = !showAllAspect">
+          <span class="aspect-icon-wrap">
+            <span class="aspect-icon ratio-more">{{ showAllAspect ? '−' : '+' }}</span>
+          </span>
+          <span class="aspect-text">{{ showAllAspect ? 'Ещё' : 'Ещё' }}</span>
         </button>
       </div>
 
-      <div v-if="showAllAspect" class="aspect-all">
+      <div v-if="showAllAspect" class="aspect-grid aspect-grid-extra">
         <button
-          v-for="o in aspectOptions"
-          :key="o"
-          class="miniopt"
-          :class="{ active: settings.aspectRatio === o }"
-          @click="settings.aspectRatio = o"
-        >{{ o }}</button>
+          v-for="o in aspectExtra"
+          :key="o.value"
+          class="segbtn aspectbtn"
+          :class="{ active: settings.aspectRatio === o.value }"
+          @click="settings.aspectRatio = o.value"
+        >
+          <span class="aspect-icon-wrap">
+            <span class="aspect-icon" :class="o.iconClass"></span>
+          </span>
+          <span class="aspect-text">{{ o.label }}</span>
+        </button>
       </div>
     </div>
 
     <div class="section">
       <div class="lbl">Разрешение</div>
-      <div class="seg">
-        <button class="segbtn" :class="{ active: settings.resolution==='1K' }" @click="settings.resolution='1K'">1K</button>
-        <button class="segbtn" :class="{ active: settings.resolution==='2K' }" @click="settings.resolution='2K'">2K</button>
-        <button class="segbtn" :class="{ active: settings.resolution==='4K' }" @click="settings.resolution='4K'">4K</button>
+      <div class="res-seg">
+        <button
+          v-for="opt in resolutionOptions"
+          :key="opt.value"
+          class="segbtn resbtn"
+          :class="{ active: settings.resolution === opt.value }"
+          @click="settings.resolution = opt.value"
+        >
+          <span class="res-title">{{ opt.title }}</span>
+          <span class="res-sub">{{ opt.sub }}</span>
+        </button>
       </div>
     </div>
 
@@ -162,13 +259,18 @@ function onPickFiles(e) {
 
       <div class="row">
         <input class="inp" v-model="urlInput" placeholder="https://example.com/img.jpg" />
-        <button class="btn" @click="addUrl" :disabled="remaining<=0">+</button>
+        <button class="btn" @click="addUrl" :disabled="remaining <= 0">+</button>
       </div>
 
-      <div v-if="urls.length" class="chips">
-        <div class="chip" v-for="u in urls" :key="u">
-          <span class="ct">{{ u }}</span>
-          <button class="x" @click="removeUrl(u)">✕</button>
+      <div v-if="urls.length" class="preview-grid">
+        <div
+          v-for="u in urls"
+          :key="u"
+          class="preview-item"
+          data-kind="URL"
+        >
+          <img class="preview-img" :src="u" alt="" loading="lazy" @error="onThumbError" />
+          <button class="preview-remove" type="button" @click.stop="removeUrl(u)">✕</button>
         </div>
       </div>
     </div>
@@ -180,7 +282,7 @@ function onPickFiles(e) {
 
       <div
         class="drop"
-        :class="{ disabled: remaining<=0 }"
+        :class="{ disabled: remaining <= 0 }"
         @click="openPicker"
         @dragover.prevent
         @drop.prevent="onDrop"
@@ -197,14 +299,26 @@ function onPickFiles(e) {
         accept="image/jpeg,image/png,image/webp"
         multiple
         @change="onPickFiles"
-        :disabled="remaining<=0"
+        :disabled="remaining <= 0"
         style="display:none;"
       />
 
-      <div class="files" v-if="files.length">
-        <div class="file" v-for="(f, idx) in files" :key="idx">
-          <div class="fn">{{ f.name }}</div>
-          <button class="mini" @click="removeFile(idx)">Удалить</button>
+      <div v-if="files.length" class="preview-grid">
+        <div
+          v-for="(f, idx) in files"
+          :key="`${f.name}-${idx}`"
+          class="preview-item"
+          data-kind="FILE"
+        >
+          <img
+            v-if="filePreviews[idx]"
+            class="preview-img"
+            :src="filePreviews[idx]"
+            alt=""
+            loading="lazy"
+            @error="onThumbError"
+          />
+          <button class="preview-remove" type="button" @click.stop="removeFile(idx)">✕</button>
         </div>
       </div>
     </div>
@@ -223,14 +337,39 @@ function onPickFiles(e) {
   color: var(--text);
 }
 
-.head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; }
-.h { font-weight: 900; }
-.small { font-size: 12px; color: var(--muted); }
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
 
-.section { margin-bottom: 14px; }
-.lbl { font-size: 12px; font-weight: 900; color: var(--theadText); margin-bottom: 6px; }
+.h {
+  font-weight: 900;
+}
 
-.inp, .ta, .sel {
+.small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.section {
+  margin-bottom: 14px;
+}
+
+.lbl {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--theadText);
+  margin-bottom: 6px;
+}
+
+.field-lbl {
+  margin-top: 10px;
+}
+
+.inp,
+.ta {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--border);
@@ -240,11 +379,24 @@ function onPickFiles(e) {
   padding: 10px;
   font-size: 13px;
 }
-.ta { resize: vertical; }
 
-.seg { display:flex; gap:8px; }
+.ta {
+  resize: vertical;
+}
+
+.seg {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mode-seg .segbtn,
+.variant-seg .segbtn {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 .segbtn {
-  flex: 1;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text);
@@ -254,39 +406,110 @@ function onPickFiles(e) {
   font-weight: 900;
   font-size: 12px;
 }
+
 .segbtn.active {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(59,130,246,.18);
+  box-shadow: var(--primary);
   background: var(--card2);
 }
 
-.aspect-scroll{
-  display:flex;
-  gap:8px;
-  overflow:auto;
-  padding-bottom: 4px;
+.aspect-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
 }
-.aspect-all{
-  margin-top: 10px;
-  display:flex;
-  flex-wrap: wrap;
+
+.aspect-grid-extra {
+  margin-top: 6px;
+}
+
+.aspectbtn {
+  min-width: 0;
+  min-height: 64px;
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.aspect-icon-wrap {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.aspect-icon {
+  display: inline-block;
+  border: 2px solid #7a8ba8;
+  border-radius: 0;
+  background: transparent;
+}
+
+.ratio-1-1 { width: 14px; height: 14px; }
+.ratio-3-4 { width: 12px; height: 16px; }
+.ratio-9-16 { width: 10px; height: 18px; }
+.ratio-16-9 { width: 18px; height: 10px; }
+.ratio-4-3 { width: 16px; height: 12px; }
+
+.ratio-2-3 { width: 11px; height: 16px; }
+.ratio-3-2 { width: 16px; height: 11px; }
+.ratio-4-5 { width: 13px; height: 16px; }
+.ratio-5-4 { width: 16px; height: 13px; }
+.ratio-21-9 { width: 20px; height: 9px; }
+.ratio-auto {
+  width: 16px;
+  height: 16px;
+  border-style: dashed;
+}
+
+.ratio-more {
+  width: 16px;
+  height: 16px;
+  border: none;
+  font-size: 18px;
+  line-height: 16px;
+  color: #7a8ba8;
+  text-align: center;
+}
+
+.aspect-text {
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.res-seg {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
-.miniopt{
-  border: 1px solid var(--border);
-  background: var(--card2);
-  color: var(--text);
-  border-radius: 999px;
-  padding: 8px 10px;
-  cursor: pointer;
-  font-weight: 900;
-  font-size: 12px;
-}
-.miniopt.active{
-  border-color: var(--primary);
+
+.resbtn {
+  min-width: 0;
+  min-height: 58px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
 }
 
-.row { display:flex; gap:8px; align-items:center; }
+.res-title,
+.res-sub {
+  display: block;
+  line-height: 1.05;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .btn {
   width: 42px;
   height: 42px;
@@ -297,14 +520,13 @@ function onPickFiles(e) {
   cursor: pointer;
   font-weight: 900;
 }
-.btn:disabled { opacity:.6; cursor:not-allowed; }
 
-.chips { margin-top: 8px; display:flex; flex-wrap:wrap; gap:8px; }
-.chip { display:flex; gap:8px; align-items:center; border:1px solid var(--border); background: var(--card); border-radius:999px; padding:6px 10px; max-width:100%; }
-.ct { font-size: 12px; color: var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width: 240px; }
-.x { border:none; background:transparent; color: var(--text); cursor:pointer; font-weight:900; }
+.btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
 
-.drop{
+.drop {
   border: 2px dashed var(--border);
   background: var(--card2);
   border-radius: 14px;
@@ -312,12 +534,96 @@ function onPickFiles(e) {
   text-align: center;
   cursor: pointer;
 }
-.drop.disabled{ opacity:.6; cursor:not-allowed; }
-.drop-title{ font-weight: 900; color: var(--text); }
-.drop-sub{ margin-top: 6px; font-size: 12px; color: var(--muted); font-weight: 800; }
 
-.files { margin-top: 8px; display:flex; flex-direction:column; gap:8px; }
-.file { display:flex; justify-content:space-between; gap:10px; border:1px solid var(--border); background: var(--card); border-radius:12px; padding:8px 10px; }
-.fn { font-size: 12px; font-weight:800; color: var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.mini { border:1px solid var(--border); background: var(--card2); color: var(--text); border-radius:10px; padding:6px 8px; cursor:pointer; font-weight:900; font-size:11px; }
+.drop.disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.drop-title {
+  font-weight: 900;
+  color: var(--text);
+}
+
+.drop-sub {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.preview-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.preview-item {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.preview-item[data-broken="1"]::after {
+  content: attr(data-kind);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--muted);
+}
+
+.preview-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.preview-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .68);
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 20px;
+  padding: 0;
+}
+
+@media (max-width: 980px) {
+  .aspect-grid {
+    gap: 6px;
+  }
+
+  .aspectbtn {
+    min-height: 60px;
+    padding: 6px 3px;
+  }
+
+  .aspect-text {
+    font-size: 10px;
+  }
+
+  .resbtn {
+    min-height: 54px;
+    padding: 6px 6px;
+  }
+
+  .preview-grid {
+    gap: 7px;
+  }
+}
 </style>

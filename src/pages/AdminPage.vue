@@ -1363,7 +1363,7 @@ onMounted(async () => {
 }
 .mitem.active{
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(59,130,246,.18);
+  box-shadow: var(--primary);
 }
 
 .content{
@@ -1502,7 +1502,7 @@ onMounted(async () => {
 }
 .mini.active{
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(59,130,246,.18);
+  box-shadow: var(--primary);
 }
 .mini.danger{ background: var(--dangerBg); border-color: var(--dangerBorder); color: var(--dangerText); }
 
