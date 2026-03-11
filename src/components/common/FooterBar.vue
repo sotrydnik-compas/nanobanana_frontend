@@ -41,7 +41,7 @@ onMounted(() => {
       </div>
 
       <div class="links">
-        <a class="lnk" href="mailto:miller-a@yandex.ru">miller-a@yandex.ru</a>
+        <a class="lnk" href="mailto:hallo@antonmiller.ru">hallo@antonmiller.ru</a>
         <span class="dot">•</span>
         <a class="lnk" href="https://t.me/antonmillerpr" target="_blank" rel="noopener">Telegram</a>
       </div>
@@ -80,7 +80,8 @@ onMounted(() => {
 
 .legal {
   color: var(--text);
-  font-weight: 800;
+  font-size: smaller;
+  font-weight: 350;
   opacity: .85;
   max-width: 720px;
 }

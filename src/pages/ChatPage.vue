@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from '../stores/auth'
 import { aiApi } from '../api/ai'
@@ -34,6 +34,95 @@ const infoText = ref('')
 
 const showChatsDrawer = ref(false)
 const showSettingsDrawer = ref(false)
+
+const IN_FLIGHT_STORAGE_KEY = 'ai_chat_inflight_v1'
+const IN_FLIGHT_TTL_MS = 24 * 60 * 60 * 1000
+const inFlightRegistry = reactive({})
+
+function readInFlightStorage() {
+  try {
+    const raw = localStorage.getItem(IN_FLIGHT_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeInFlightStorage(data) {
+  try {
+    localStorage.setItem(IN_FLIGHT_STORAGE_KEY, JSON.stringify(data || {}))
+  } catch {}
+}
+
+function pruneInFlightStorage(data = readInFlightStorage()) {
+  const now = Date.now()
+  const next = {}
+
+  for (const [chatId, entry] of Object.entries(data || {})) {
+    if (!chatId || !entry || typeof entry !== 'object') continue
+    if (!entry.createdAt || now - Number(entry.createdAt) > IN_FLIGHT_TTL_MS) continue
+    if (entry.kind !== 'task' && entry.kind !== 'batch') continue
+    if (entry.kind === 'task' && !entry.taskId) continue
+    if (entry.kind === 'batch' && !entry.batchId) continue
+    next[chatId] = entry
+  }
+
+  writeInFlightStorage(next)
+  return next
+}
+
+function syncRegistryFromStorage() {
+  const cleaned = pruneInFlightStorage()
+  Object.keys(inFlightRegistry).forEach((key) => delete inFlightRegistry[key])
+  Object.assign(inFlightRegistry, cleaned)
+  return cleaned
+}
+
+function setInFlightEntry(chatId, entry) {
+  if (!chatId || !entry) return
+  const key = String(chatId)
+  const nextEntry = {
+    ...entry,
+    createdAt: entry.createdAt || Date.now(),
+  }
+
+  inFlightRegistry[key] = nextEntry
+  const data = pruneInFlightStorage()
+  data[key] = nextEntry
+  writeInFlightStorage(data)
+}
+
+function getInFlightEntry(chatId) {
+  if (!chatId) return null
+  const key = String(chatId)
+  const memoryEntry = inFlightRegistry[key]
+  if (memoryEntry) return memoryEntry
+
+  const data = syncRegistryFromStorage()
+  const entry = data[key] || null
+  if (entry) inFlightRegistry[key] = entry
+  return entry
+}
+
+function clearInFlightEntry(chatId) {
+  if (!chatId) return
+  const key = String(chatId)
+  delete inFlightRegistry[key]
+
+  const data = pruneInFlightStorage()
+  if (data[key]) {
+    delete data[key]
+    writeInFlightStorage(data)
+  }
+}
+
+function resetCurrentInFlightState() {
+  taskInFlight.value = false
+  inFlightKind.value = ''
+  currentTaskId.value = ''
+  currentBatchId.value = ''
+}
 
 const settings = reactive({
   aspectRatio: 'auto',
@@ -109,12 +198,58 @@ function onNewChat() {
   currentChatId.value = null
   currentChatStatus.value = 'active'
   messages.value = []
-  currentTaskId.value = ''
-  currentBatchId.value = ''
-  inFlightKind.value = ''
-  taskInFlight.value = false
+  resetCurrentInFlightState()
   stopPolling()
   showChatsDrawer.value = false
+}
+
+async function resumeInFlightForChat(chatId) {
+  const entry = getInFlightEntry(chatId)
+  if (!entry) return
+
+  try {
+    if (entry.kind === 'batch' && entry.batchId) {
+      const r = await aiApi.getBatch(entry.batchId)
+      const st = r?.status || 'pending'
+      const doneStatuses = new Set(['completed', 'partial', 'failed', 'cancelled'])
+
+      if (doneStatuses.has(st)) {
+        clearInFlightEntry(chatId)
+        resetCurrentInFlightState()
+        await loadMessages(chatId)
+        await loadChats()
+        return
+      }
+
+      taskInFlight.value = true
+      inFlightKind.value = 'batch'
+      currentBatchId.value = entry.batchId
+      currentTaskId.value = ''
+      await startBatchPolling(entry.batchId, chatId)
+      return
+    }
+
+    if (entry.kind === 'task' && entry.taskId) {
+      const r = await fetchTaskOnce(entry.taskId)
+      const flag = r?.data?.successFlag ?? 0
+
+      if (flag === 1 || flag === 2 || flag === 3) {
+        clearInFlightEntry(chatId)
+        resetCurrentInFlightState()
+        await loadMessages(chatId)
+        await loadChats()
+        return
+      }
+
+      taskInFlight.value = true
+      inFlightKind.value = 'task'
+      currentTaskId.value = entry.taskId
+      currentBatchId.value = ''
+      await startTaskPolling(entry.taskId, chatId)
+    }
+  } catch {
+    // не показываем ошибку при авто-возобновлении — запись останется в localStorage
+  }
 }
 
 async function onSelectChat(chatId) {
@@ -126,7 +261,9 @@ async function onSelectChat(chatId) {
   currentChatStatus.value = found?.status || 'active'
 
   stopPolling()
+  resetCurrentInFlightState()
   await loadMessages(chatId)
+  await resumeInFlightForChat(chatId)
 
   // ✅ на мобилке закрываем drawer со списком чатов после выбора
   showChatsDrawer.value = false
@@ -225,8 +362,8 @@ async function startTaskPolling(taskId, chatId) {
     const r = await fetchTaskOnce(taskId)
     const flag = r?.data?.successFlag ?? 0
     if (flag === 1 || flag === 2 || flag === 3) {
-      taskInFlight.value = false
-      inFlightKind.value = ''
+      clearInFlightEntry(chatId)
+      resetCurrentInFlightState()
       await loadMessages(chatId)
       await loadChats()
       return
@@ -239,16 +376,15 @@ async function startTaskPolling(taskId, chatId) {
       const flag = r?.data?.successFlag ?? 0
       if (flag === 1 || flag === 2 || flag === 3) {
         stopPolling()
-        taskInFlight.value = false
-        inFlightKind.value = ''
+        clearInFlightEntry(chatId)
+        resetCurrentInFlightState()
         await loadMessages(chatId)
         await loadChats()
       }
     } catch (e) {
       errorText.value = e?.message || 'Ошибка опроса статуса'
       stopPolling()
-      taskInFlight.value = false
-      inFlightKind.value = ''
+      resetCurrentInFlightState()
     }
   }, 5000)
 }
@@ -280,16 +416,15 @@ async function startBatchPolling(batchId, chatId) {
       const doneStatuses = new Set(['completed', 'partial', 'failed', 'cancelled'])
       if (doneStatuses.has(st)) {
         stopPolling()
-        taskInFlight.value = false
-        inFlightKind.value = ''
+        clearInFlightEntry(chatId)
+        resetCurrentInFlightState()
         await loadMessages(chatId)
         await loadChats()
       }
     } catch (e) {
       errorText.value = e?.message || 'Ошибка опроса пакетной задачи'
       stopPolling()
-      taskInFlight.value = false
-      inFlightKind.value = ''
+      resetCurrentInFlightState()
     }
   }
 
@@ -340,6 +475,13 @@ async function onSend(userPrompt) {
         currentChatStatus.value = 'active'
       }
 
+      if (currentChatId.value && r.batch_id) {
+        setInFlightEntry(currentChatId.value, {
+          kind: 'batch',
+          batchId: r.batch_id,
+        })
+      }
+
       await loadMessages(currentChatId.value)
       await loadChats()
 
@@ -365,6 +507,13 @@ async function onSend(userPrompt) {
       currentChatStatus.value = 'active'
     }
 
+    if (currentChatId.value && r.taskId) {
+      setInFlightEntry(currentChatId.value, {
+        kind: 'task',
+        taskId: r.taskId,
+      })
+    }
+
     await loadMessages(currentChatId.value)
     await loadChats()
 
@@ -383,6 +532,7 @@ async function onSend(userPrompt) {
 }
 
 onMounted(async () => {
+  syncRegistryFromStorage()
   await loadChats()
 })
 

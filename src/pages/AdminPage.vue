@@ -77,7 +77,7 @@ function userLabel(id) {
 async function ensureUserIndex() {
   if (userIndex.value.length) return
   try {
-    const r = await adminApi.auth.listUsers({ limit: 2000, offset: 0 })
+    const r = await adminApi.auth.listUsers({ limit: 100, offset: 0 })
     userIndex.value = r?.items || []
   } catch {
     // не валим UI
