@@ -36,9 +36,9 @@ function fmt(ts) {
         </div>
         <div class="meta">{{ fmt(c.updated_at) }}</div>
 
-        <div class="actions" @click.stop>
-          <button class="mini" @click="$emit('closeChat', c.chatId)">Закрыть</button>
-          <button class="mini danger" @click="$emit('deleteChat', c.chatId)">Удалить</button>
+        <div class="actions">
+          <button class="mini" @click.stop="$emit('closeChat', c.chatId)">Закрыть</button>
+          <button class="mini danger" @click.stop="$emit('deleteChat', c.chatId)">Удалить</button>
         </div>
       </div>
 

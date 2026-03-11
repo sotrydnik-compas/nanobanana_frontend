@@ -5,6 +5,8 @@ const props = defineProps({
   msg: { type: Object, required: true },
 })
 
+const emit = defineEmits(['imageLoaded'])
+
 const isUser = computed(() => props.msg.role === 'user')
 const isAssistant = computed(() => props.msg.role === 'assistant')
 
@@ -18,8 +20,13 @@ const copied = ref(false)
 function openModal() {
   modalOpen.value = true
 }
+
 function closeModal() {
   modalOpen.value = false
+}
+
+function onImageLoad() {
+  emit('imageLoaded')
 }
 
 async function copyLink() {
@@ -29,7 +36,6 @@ async function copyLink() {
   try {
     await navigator.clipboard.writeText(url)
   } catch {
-    // fallback
     const ta = document.createElement('textarea')
     ta.value = url
     ta.style.position = 'fixed'
@@ -44,19 +50,63 @@ async function copyLink() {
   setTimeout(() => (copied.value = false), 1500)
 }
 
-function downloadImage() {
-  const url = resultUrl.value
-  if (!url) return
+function extFromContentType(contentType = '') {
+  if (contentType.includes('png')) return 'png'
+  if (contentType.includes('webp')) return 'webp'
+  if (contentType.includes('jpeg') || contentType.includes('jpg')) return 'jpg'
+  return ''
+}
 
-  // download может не сработать из-за CORS — тогда просто откроется вкладка
+function buildDownloadName(url, fallback = 'image', contentType = '') {
+  try {
+    const parsed = new URL(url)
+    const last = parsed.pathname.split('/').pop() || ''
+    if (last && last.includes('.')) {
+      return decodeURIComponent(last.split('?')[0])
+    }
+  } catch {}
+
+  const ext = extFromContentType(contentType)
+  return ext ? `${fallback}.${ext}` : fallback
+}
+
+function openUrlInNewTab(url) {
+  if (!url) return
   const a = document.createElement('a')
   a.href = url
   a.target = '_blank'
   a.rel = 'noopener,noreferrer'
-  a.download = ''
   document.body.appendChild(a)
   a.click()
   a.remove()
+}
+
+async function downloadImage() {
+  const url = resultUrl.value
+  if (!url) return
+
+  try {
+    const resp = await fetch(url, { mode: 'cors' })
+    if (!resp.ok) throw new Error('download_failed')
+
+    const blob = await resp.blob()
+    const objectUrl = URL.createObjectURL(blob)
+
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = buildDownloadName(
+      url,
+      'generated-image',
+      resp.headers.get('content-type') || ''
+    )
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+  } catch {
+    openUrlInNewTab(url)
+  }
 }
 </script>
 
@@ -77,6 +127,7 @@ function downloadImage() {
           loading="lazy"
           decoding="async"
           @click="openModal"
+          @load="onImageLoad"
         />
 
         <div class="actions">
@@ -85,7 +136,6 @@ function downloadImage() {
           <span v-if="copied" class="copied">Ссылка скопирована</span>
         </div>
 
-        <!-- MODAL / original -->
         <div v-if="modalOpen" class="modal" @click.self="closeModal">
           <div class="modal-inner">
             <button class="close" type="button" @click="closeModal">✕</button>
@@ -124,7 +174,9 @@ function downloadImage() {
   background: var(--statusPendingBg);
 }
 
-.bubble.assistant { align-self: flex-start; }
+.bubble.assistant {
+  align-self: flex-start;
+}
 
 .text {
   white-space: pre-wrap;
@@ -133,7 +185,6 @@ function downloadImage() {
   color: var(--text);
 }
 
-/* визуальный thumbnail (CSS). Физически “не скачать full-res” фронтом нельзя без thumb_url */
 .img {
   width: 100%;
   max-width: 560px;
@@ -170,10 +221,17 @@ function downloadImage() {
   font-weight: 800;
 }
 
-.err { font-size: 12px; font-weight: 900; color: var(--dangerText); }
-.muted { font-size: 12px; color: var(--muted); }
+.err {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--dangerText);
+}
 
-/* modal */
+.muted {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .modal {
   position: fixed;
   inset: 0;

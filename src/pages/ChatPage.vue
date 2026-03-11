@@ -1,5 +1,5 @@
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from '../stores/auth'
 import { aiApi } from '../api/ai'
@@ -34,6 +34,8 @@ const infoText = ref('')
 
 const showChatsDrawer = ref(false)
 const showSettingsDrawer = ref(false)
+
+const composerRef = ref(null)
 
 const IN_FLIGHT_STORAGE_KEY = 'ai_chat_inflight_v1'
 const IN_FLIGHT_TTL_MS = 24 * 60 * 60 * 1000
@@ -137,6 +139,97 @@ const refsState = reactive({
   urls: [],
   files: [], // File[]
 })
+
+const downloadableImageUrls = computed(() => {
+  const seen = new Set()
+  const urls = []
+
+  for (const msg of messages.value || []) {
+    const url = msg?.meta?.resultImageUrl
+    if (!url || seen.has(url)) continue
+    seen.add(url)
+    urls.push(url)
+  }
+
+  return urls
+})
+
+function extFromContentType(contentType = '') {
+  if (contentType.includes('png')) return 'png'
+  if (contentType.includes('webp')) return 'webp'
+  if (contentType.includes('jpeg') || contentType.includes('jpg')) return 'jpg'
+  return ''
+}
+
+function buildDownloadName(url, fallback = 'image', contentType = '') {
+  try {
+    const parsed = new URL(url)
+    const last = parsed.pathname.split('/').pop() || ''
+    if (last && last.includes('.')) {
+      return decodeURIComponent(last.split('?')[0])
+    }
+  } catch {}
+
+  const ext = extFromContentType(contentType)
+  return ext ? `${fallback}.${ext}` : fallback
+}
+
+function openUrlInNewTab(url) {
+  if (!url) return
+  const a = document.createElement('a')
+  a.href = url
+  a.target = '_blank'
+  a.rel = 'noopener,noreferrer'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+}
+
+async function downloadUrl(url, fallbackName = 'image') {
+  if (!url) return
+
+  try {
+    const resp = await fetch(url, { mode: 'cors' })
+    if (!resp.ok) throw new Error('download_failed')
+
+    const blob = await resp.blob()
+    const objectUrl = URL.createObjectURL(blob)
+
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = buildDownloadName(
+      url,
+      fallbackName,
+      resp.headers.get('content-type') || ''
+    )
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+  } catch {
+    openUrlInNewTab(url)
+  }
+}
+
+async function onDownloadAll() {
+  const urls = downloadableImageUrls.value
+  if (!urls.length) return
+
+  errorText.value = ''
+  infoText.value = ''
+
+  for (let i = 0; i < urls.length; i++) {
+    const fileName = `chat-${currentChatId.value || 'images'}-${String(i + 1).padStart(2, '0')}`
+    await downloadUrl(urls[i], fileName)
+
+    if (i < urls.length - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 120))
+    }
+  }
+
+  infoText.value = `Скачивание запущено: ${urls.length}`
+}
 
 function closeDrawers() {
   showChatsDrawer.value = false
@@ -447,6 +540,7 @@ async function onSend(userPrompt) {
   if (!validateBeforeSend(userPrompt)) return
 
   const promptToSend = finalPrompt(userPrompt)
+  composerRef.value?.clearPrompt()
 
   taskInFlight.value = true
   inFlightKind.value = ''
@@ -562,6 +656,7 @@ onBeforeUnmount(() => {
         <div class="center-inner">
           <div class="card">
             <ChatMessages
+              :chatId="currentChatId"
               :messages="messages"
               :loading="messagesLoading"
               :taskInFlight="taskInFlight"
@@ -569,9 +664,13 @@ onBeforeUnmount(() => {
           </div>
 
           <Composer
+            ref="composerRef"
             :disabled="taskInFlight || currentChatStatus === 'closed'"
             :hint="currentChatStatus === 'closed' ? 'Чат закрыт — создайте новый' : ''"
+            :showDownloadAll="downloadableImageUrls.length > 0"
+            :downloadCount="downloadableImageUrls.length"
             @send="onSend"
+            @downloadAll="onDownloadAll"
             @openChats="showChatsDrawer = true"
             @openSettings="showSettingsDrawer = true"
           />
@@ -725,5 +824,21 @@ onBeforeUnmount(() => {
   right: 0;
   border-right: none;
   border-radius: 16px 0 0 16px;
+}
+
+.chat-tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 980px) {
+  .chat-tools {
+    justify-content: stretch;
+  }
+
+  .chat-tools .btn {
+    width: 100%;
+  }
 }
 </style>
