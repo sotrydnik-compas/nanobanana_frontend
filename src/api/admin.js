@@ -43,7 +43,7 @@ export const adminApi = {
 
     getSamples: (page = 1, page_size = 10) =>
         apiJson(`
-          ${aiRoot}/admin/samples/?page=${page}&page_size=${page_size}`
+          ${aiRoot}/admin/samples?page=${page}&page_size=${page_size}`
         ),
 
     uploadSamples: (files = []) => {

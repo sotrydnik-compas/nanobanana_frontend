@@ -5,9 +5,18 @@ const props = defineProps({
   settings: { type: Object, required: true },
   urls: { type: Array, required: true },
   files: { type: Array, required: true }, // File[]
+  referenceUrls: { type: Array, required: true },
+  referenceFiles: { type: Array, required: true }, // File[]
   productCardVariants: { type: Array, default: () => [] },
 })
-const emit = defineEmits(['update:settings', 'update:urls', 'update:files'])
+
+const emit = defineEmits([
+  'update:settings',
+  'update:urls',
+  'update:files',
+  'update:referenceUrls',
+  'update:referenceFiles',
+])
 
 const DEFAULT_PRODUCT_CARD_VARIANTS = [
   { key: 'Студийное', label: 'студийное фото', sort_order: 0 },
@@ -49,21 +58,45 @@ const sortedProductCardVariants = computed(() => {
 const showAllAspect = ref(false)
 
 const fileInput = ref(null)
+const referenceFileInput = ref(null)
+
 const urlInput = ref('')
+const referenceUrlInput = ref('')
+
 const maxSizeMB = 10
 const allowed = ['image/jpeg', 'image/png', 'image/webp']
 
-const maxTotal = computed(() => (props.settings.mode === 'batch' ? 100 : 7))
-const totalRefs = computed(() => (props.urls.length || 0) + (props.files.length || 0))
-const remaining = computed(() => Math.max(0, maxTotal.value - totalRefs.value))
+const maxMainTotal = computed(() => (props.settings.mode === 'batch' ? 100 : 7))
+const totalMainRefs = computed(() => (props.urls.length || 0) + (props.files.length || 0))
+const remainingMain = computed(() => Math.max(0, maxMainTotal.value - totalMainRefs.value))
+
+const maxReferenceTotal = 5
+const totalReferenceRefs = computed(
+  () => (props.referenceUrls.length || 0) + (props.referenceFiles.length || 0)
+)
+const remainingReference = computed(
+  () => Math.max(0, maxReferenceTotal - totalReferenceRefs.value)
+)
 
 const filePreviews = ref([])
+const referenceFilePreviews = ref([])
+
+function cleanupPreviews(list) {
+  for (const url of list) {
+    try {
+      URL.revokeObjectURL(url)
+    } catch {}
+  }
+}
 
 function cleanupFilePreviews() {
-  for (const url of filePreviews.value) {
-    try { URL.revokeObjectURL(url) } catch {}
-  }
+  cleanupPreviews(filePreviews.value)
   filePreviews.value = []
+}
+
+function cleanupReferenceFilePreviews() {
+  cleanupPreviews(referenceFilePreviews.value)
+  referenceFilePreviews.value = []
 }
 
 watch(
@@ -81,45 +114,52 @@ watch(
   { immediate: true, deep: true }
 )
 
+watch(
+  () => props.referenceFiles,
+  (files) => {
+    cleanupReferenceFilePreviews()
+    referenceFilePreviews.value = (files || []).map((f) => {
+      try {
+        return URL.createObjectURL(f)
+      } catch {
+        return ''
+      }
+    })
+  },
+  { immediate: true, deep: true }
+)
+
 onBeforeUnmount(() => {
   cleanupFilePreviews()
+  cleanupReferenceFilePreviews()
 })
 
 function openPicker() {
-  if (remaining.value <= 0) return
+  if (remainingMain.value <= 0) return
   fileInput.value?.click()
 }
 
-function onDrop(e) {
-  addFiles(e.dataTransfer?.files)
+function openReferencePicker() {
+  if (remainingReference.value <= 0) return
+  referenceFileInput.value?.click()
 }
 
-function addUrl() {
-  const u = urlInput.value.trim()
-  if (!u) return
-  if (remaining.value <= 0) return
-
-  try { new URL(u) } catch { return }
-
-  if (!props.urls.includes(u)) {
-    emit('update:urls', [...props.urls, u])
+function isValidUrl(u) {
+  try {
+    new URL(u)
+    return true
+  } catch {
+    return false
   }
-
-  urlInput.value = ''
 }
 
-function removeUrl(u) {
-  emit('update:urls', props.urls.filter((x) => x !== u))
-}
-
-function addFiles(fileList) {
+function buildNextFiles(fileList, currentFiles, limitLeft) {
   const arr = Array.from(fileList || [])
-  if (!arr.length) return
+  if (!arr.length || limitLeft <= 0) return [...currentFiles]
 
-  let left = remaining.value
-  if (left <= 0) return
+  const next = [...currentFiles]
+  let left = limitLeft
 
-  const next = [...props.files]
   for (const f of arr) {
     if (left <= 0) break
     if (!allowed.includes(f.type)) continue
@@ -128,7 +168,49 @@ function addFiles(fileList) {
     left--
   }
 
+  return next
+}
+
+function addUrl() {
+  const u = urlInput.value.trim()
+  if (!u || remainingMain.value <= 0) return
+  if (!isValidUrl(u)) return
+
+  if (!props.urls.includes(u)) {
+    emit('update:urls', [...props.urls, u])
+  }
+
+  urlInput.value = ''
+}
+
+function addReferenceUrl() {
+  const u = referenceUrlInput.value.trim()
+  if (!u || remainingReference.value <= 0) return
+  if (!isValidUrl(u)) return
+
+  if (!props.referenceUrls.includes(u)) {
+    emit('update:referenceUrls', [...props.referenceUrls, u])
+  }
+
+  referenceUrlInput.value = ''
+}
+
+function removeUrl(u) {
+  emit('update:urls', props.urls.filter((x) => x !== u))
+}
+
+function removeReferenceUrl(u) {
+  emit('update:referenceUrls', props.referenceUrls.filter((x) => x !== u))
+}
+
+function addFiles(fileList) {
+  const next = buildNextFiles(fileList, props.files, remainingMain.value)
   emit('update:files', next)
+}
+
+function addReferenceFiles(fileList) {
+  const next = buildNextFiles(fileList, props.referenceFiles, remainingReference.value)
+  emit('update:referenceFiles', next)
 }
 
 function removeFile(idx) {
@@ -137,9 +219,28 @@ function removeFile(idx) {
   emit('update:files', next)
 }
 
+function removeReferenceFile(idx) {
+  const next = [...props.referenceFiles]
+  next.splice(idx, 1)
+  emit('update:referenceFiles', next)
+}
+
 function onPickFiles(e) {
   addFiles(e.target.files)
   e.target.value = ''
+}
+
+function onPickReferenceFiles(e) {
+  addReferenceFiles(e.target.files)
+  e.target.value = ''
+}
+
+function onDrop(e) {
+  addFiles(e.dataTransfer?.files)
+}
+
+function onReferenceDrop(e) {
+  addReferenceFiles(e.dataTransfer?.files)
 }
 
 function onThumbError(e) {
@@ -155,7 +256,7 @@ function onThumbError(e) {
       <div class="h">Параметры</div>
       <div class="small">
         {{ settings.mode === 'batch' ? 'Изображения' : 'Референсы' }}:
-        {{ totalRefs }}/{{ maxTotal }}
+        {{ totalMainRefs }}/{{ maxMainTotal }}
       </div>
     </div>
 
@@ -216,7 +317,7 @@ function onThumbError(e) {
           <span class="aspect-icon-wrap">
             <span class="aspect-icon ratio-more">{{ showAllAspect ? '−' : '+' }}</span>
           </span>
-          <span class="aspect-text">{{ showAllAspect ? 'Ещё' : 'Ещё' }}</span>
+          <span class="aspect-text">Ещё</span>
         </button>
       </div>
 
@@ -252,14 +353,85 @@ function onThumbError(e) {
       </div>
     </div>
 
+    <div v-if="settings.mode === 'batch'" class="section">
+      <div class="lbl">Общие референсы (Опционально)</div>
+      <div class="hint">
+        Эти изображения будут общими для всего пакета. Максимум 5.
+      </div>
+
+      <div class="subsection">
+        <div class="lbl sub-lbl">URL общих референсов (до 5)</div>
+        <div class="row">
+          <input class="inp" v-model="referenceUrlInput" placeholder="https://example.com/ref.jpg" />
+          <button class="btn" @click="addReferenceUrl" :disabled="remainingReference <= 0">+</button>
+        </div>
+
+        <div v-if="referenceUrls.length" class="preview-grid">
+          <div
+            v-for="u in referenceUrls"
+            :key="u"
+            class="preview-item"
+            data-kind="URL"
+          >
+            <img class="preview-img" :src="u" alt="" loading="lazy" @error="onThumbError" />
+            <button class="preview-remove" type="button" @click.stop="removeReferenceUrl(u)">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="subsection">
+        <div class="lbl sub-lbl">Файлы общих референсов (jpg/png/webp, до {{ maxSizeMB }}MB)</div>
+
+        <div
+          class="drop"
+          :class="{ disabled: remainingReference <= 0 }"
+          @click="openReferencePicker"
+          @dragover.prevent
+          @drop.prevent="onReferenceDrop"
+        >
+          <div class="drop-title">Нажми или перетащи общие референсы</div>
+          <div class="drop-sub">({{ totalReferenceRefs }}/{{ maxReferenceTotal }})</div>
+        </div>
+
+        <input
+          ref="referenceFileInput"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          @change="onPickReferenceFiles"
+          :disabled="remainingReference <= 0"
+          style="display:none;"
+        />
+
+        <div v-if="referenceFiles.length" class="preview-grid">
+          <div
+            v-for="(f, idx) in referenceFiles"
+            :key="`${f.name}-${idx}`"
+            class="preview-item"
+            data-kind="FILE"
+          >
+            <img
+              v-if="referenceFilePreviews[idx]"
+              class="preview-img"
+              :src="referenceFilePreviews[idx]"
+              alt=""
+              loading="lazy"
+              @error="onThumbError"
+            />
+            <button class="preview-remove" type="button" @click.stop="removeReferenceFile(idx)">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="section">
       <div class="lbl">
-        {{ settings.mode === 'batch' ? 'URL изображений (до 100)' : 'URL-референсы' }}
+        {{ settings.mode === 'batch' ? 'URL изображений для пакетной обработки (до 100)' : 'URL-референсы' }}
       </div>
 
       <div class="row">
         <input class="inp" v-model="urlInput" placeholder="https://example.com/img.jpg" />
-        <button class="btn" @click="addUrl" :disabled="remaining <= 0">+</button>
+        <button class="btn" @click="addUrl" :disabled="remainingMain <= 0">+</button>
       </div>
 
       <div v-if="urls.length" class="preview-grid">
@@ -277,12 +449,12 @@ function onThumbError(e) {
 
     <div class="section">
       <div class="lbl">
-        {{ settings.mode === 'batch' ? 'Файлы (до 100, jpg/png/webp)' : `Файлы (jpg/png/webp, до ${maxSizeMB}MB)` }}
+        {{ settings.mode === 'batch' ? 'Файлы для пакетной обработки (до 100, jpg/png/webp)' : `Файлы (jpg/png/webp, до ${maxSizeMB}MB)` }}
       </div>
 
       <div
         class="drop"
-        :class="{ disabled: remaining <= 0 }"
+        :class="{ disabled: remainingMain <= 0 }"
         @click="openPicker"
         @dragover.prevent
         @drop.prevent="onDrop"
@@ -290,7 +462,7 @@ function onThumbError(e) {
         <div class="drop-title">
           {{ settings.mode === 'batch' ? 'Нажми или перетащи изображения для пакетной обработки' : 'Нажми или перетащи для загрузки изображений' }}
         </div>
-        <div class="drop-sub">({{ totalRefs }}/{{ maxTotal }})</div>
+        <div class="drop-sub">({{ totalMainRefs }}/{{ maxMainTotal }})</div>
       </div>
 
       <input
@@ -299,7 +471,7 @@ function onThumbError(e) {
         accept="image/jpeg,image/png,image/webp"
         multiple
         @change="onPickFiles"
-        :disabled="remaining <= 0"
+        :disabled="remainingMain <= 0"
         style="display:none;"
       />
 
@@ -357,6 +529,10 @@ function onThumbError(e) {
   margin-bottom: 14px;
 }
 
+.subsection + .subsection {
+  margin-top: 12px;
+}
+
 .lbl {
   font-size: 12px;
   font-weight: 900;
@@ -364,8 +540,19 @@ function onThumbError(e) {
   margin-bottom: 6px;
 }
 
+.sub-lbl {
+  margin-bottom: 6px;
+}
+
 .field-lbl {
   margin-top: 10px;
+}
+
+.hint {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
 }
 
 .inp,

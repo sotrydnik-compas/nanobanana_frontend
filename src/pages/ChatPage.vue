@@ -126,19 +126,36 @@ function resetCurrentInFlightState() {
   currentBatchId.value = ''
 }
 
-const settings = reactive({
-  aspectRatio: 'auto',
-  resolution: '1K',
-  mode: 'standard', // standard | product_card | batch
-  productVariant: 'studio', // studio | image | ugc
-  title: '',
-  advantage: '',
-})
+function createDefaultSettings() {
+  return {
+    aspectRatio: 'auto',
+    resolution: '1K',
+    mode: 'standard', // standard | product_card | batch
+    productVariant: 'studio', // studio | image | ugc
+    title: '',
+    advantage: '',
+  }
+}
+
+const settings = reactive(createDefaultSettings())
 
 const refsState = reactive({
   urls: [],
   files: [], // File[]
+  referenceUrls: [],
+  referenceFiles: [], // File[]
 })
+
+const settingsPanelKey = ref(0)
+
+function resetSettingsPanelState() {
+  Object.assign(settings, createDefaultSettings())
+  refsState.urls = []
+  refsState.files = []
+  refsState.referenceUrls = []
+  refsState.referenceFiles = []
+  settingsPanelKey.value += 1
+}
 
 const DEFAULT_PRODUCT_CARD_TEMPLATE =
   'Создай мне {variant_label} для карточки товара. Заголовок: {title}. Преимущество: {advantage}'
@@ -355,6 +372,7 @@ function onNewChat() {
   messages.value = []
   resetCurrentInFlightState()
   stopPolling()
+  resetSettingsPanelState()
   showChatsDrawer.value = false
 }
 
@@ -417,6 +435,8 @@ async function onSelectChat(chatId) {
 
   stopPolling()
   resetCurrentInFlightState()
+  resetSettingsPanelState()
+
   await loadMessages(chatId)
   await resumeInFlightForChat(chatId)
 
@@ -477,6 +497,23 @@ const finalPrompt = (userPrompt) => {
     .replaceAll('{advantage}', settings.advantage.trim())
 }
 
+function getBatchCommonRefsCount() {
+  return (refsState.referenceUrls?.length || 0) + (refsState.referenceFiles?.length || 0)
+}
+
+function buildBatchPrompt(basePrompt) {
+  const prompt = String(basePrompt || '').trim()
+  const commonRefsCount = getBatchCommonRefsCount()
+
+  if (!commonRefsCount) return prompt
+
+  let noun = 'изображений'
+  if (commonRefsCount === 1) noun = 'изображение'
+  else if (commonRefsCount >= 2 && commonRefsCount <= 4) noun = 'изображения'
+
+  return `Используй первые ${commonRefsCount} ${noun} в качестве референсов, а последнее изображение обработай так: ${prompt}`
+}
+
 function validateBeforeSend(userPrompt) {
   errorText.value = ''
   infoText.value = ''
@@ -487,10 +524,19 @@ function validateBeforeSend(userPrompt) {
   }
 
   if (settings.mode === 'product_card') {
-    if (!settings.title.trim()) { errorText.value = 'Введите заголовок.'; return false }
-    if (!settings.advantage.trim()) { errorText.value = 'Введите преимущество.'; return false }
+    if (!settings.title.trim()) {
+      errorText.value = 'Введите заголовок.'
+      return false
+    }
+    if (!settings.advantage.trim()) {
+      errorText.value = 'Введите преимущество.'
+      return false
+    }
   } else {
-    if (!String(userPrompt || '').trim()) { errorText.value = 'Введите запрос.'; return false }
+    if (!String(userPrompt || '').trim()) {
+      errorText.value = 'Введите запрос.'
+      return false
+    }
   }
 
   const totalRefs = (refsState.urls?.length || 0) + (refsState.files?.length || 0)
@@ -500,6 +546,14 @@ function validateBeforeSend(userPrompt) {
     errorText.value = settings.mode === 'batch'
       ? 'Максимум 100 изображений (URL + файлы) на пакет.'
       : 'Максимум 7 референсов (URL + файлы) на запрос.'
+    return false
+  }
+
+  const totalCommonRefs =
+    (refsState.referenceUrls?.length || 0) + (refsState.referenceFiles?.length || 0)
+
+  if (settings.mode === 'batch' && totalCommonRefs > 5) {
+    errorText.value = 'Максимум 5 общих референсов на пакет.'
     return false
   }
 
@@ -606,7 +660,12 @@ async function onSend(userPrompt) {
   if (taskInFlight.value) return
   if (!validateBeforeSend(userPrompt)) return
 
-  const promptToSend = finalPrompt(userPrompt)
+  let promptToSend = finalPrompt(userPrompt)
+
+  if (settings.mode === 'batch') {
+    promptToSend = buildBatchPrompt(promptToSend)
+  }
+
   composerRef.value?.clearPrompt()
 
   taskInFlight.value = true
@@ -627,6 +686,8 @@ async function onSend(userPrompt) {
         chatId: currentChatId.value || null,
         imageUrls: refsState.urls,
         files: refsState.files,
+        referenceUrls: refsState.referenceUrls,
+        referenceFiles: refsState.referenceFiles,
       })
 
       currentBatchId.value = r.batch_id
@@ -761,9 +822,12 @@ onBeforeUnmount(() => {
       <!-- DESKTOP: параметры справа -->
       <aside class="right desktop-only">
         <SettingsPanel
+          :key="`desktop-${settingsPanelKey}`"
           v-model:settings="settings"
           v-model:urls="refsState.urls"
           v-model:files="refsState.files"
+          v-model:referenceUrls="refsState.referenceUrls"
+          v-model:referenceFiles="refsState.referenceFiles"
           :productCardVariants="productCardVariants"
         />
       </aside>
@@ -787,9 +851,12 @@ onBeforeUnmount(() => {
       <div v-if="showSettingsDrawer" class="overlay" @click.self="showSettingsDrawer = false">
         <div class="drawer right-drawer">
           <SettingsPanel
+            :key="`mobile-${settingsPanelKey}`"
             v-model:settings="settings"
             v-model:urls="refsState.urls"
             v-model:files="refsState.files"
+            v-model:referenceUrls="refsState.referenceUrls"
+            v-model:referenceFiles="refsState.referenceFiles"
             :productCardVariants="productCardVariants"
           />
         </div>
