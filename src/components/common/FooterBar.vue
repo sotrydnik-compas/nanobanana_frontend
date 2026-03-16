@@ -37,7 +37,7 @@ onMounted(() => {
 
     <div class="center">
       <div class="legal">
-        ИП ЛЯДОВ АНТОН АЛЕКСАНДРОВИЧ<br>ОГРНИП 325595800129700<br>ИНН 590704021992
+        ИП ЛЯДОВ АНТОН АЛЕКСАНДРОВИЧ ОГРНИП 325595800129700 ИНН 590704021992
       </div>
 
       <div class="links">
@@ -80,7 +80,7 @@ onMounted(() => {
 
 .legal {
   color: var(--text);
-  font-size: smaller;
+  font-size: 0.5rem;
   font-weight: 350;
   opacity: .85;
   max-width: 720px;
