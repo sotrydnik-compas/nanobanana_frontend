@@ -128,8 +128,10 @@ function resetCurrentInFlightState() {
 
 function createDefaultSettings() {
   return {
-    aspectRatio: 'auto',
+    aspectRatio: '1:1',
     resolution: '1K',
+    googleSearch: true,
+    outputFormat: 'png',
     mode: 'standard', // standard | product_card | batch
     productVariant: 'studio', // studio | image | ugc
     title: '',
@@ -514,6 +516,10 @@ function buildBatchPrompt(basePrompt) {
   return `Используй первые ${commonRefsCount} ${noun} в качестве референсов, а последнее изображение обработай так: ${prompt}`
 }
 
+function getRequestAspectRatio() {
+  return settings.aspectRatio === 'auto' ? '1:1' : settings.aspectRatio
+}
+
 function validateBeforeSend(userPrompt) {
   errorText.value = ''
   infoText.value = ''
@@ -682,7 +688,9 @@ async function onSend(userPrompt) {
       const r = await aiApi.generateBatch({
         prompt: promptToSend,
         resolution: settings.resolution,
-        aspectRatio: settings.aspectRatio,
+        aspectRatio: getRequestAspectRatio(),
+        googleSearch: settings.googleSearch,
+        outputFormat: settings.outputFormat,
         chatId: currentChatId.value || null,
         imageUrls: refsState.urls,
         files: refsState.files,
@@ -716,7 +724,9 @@ async function onSend(userPrompt) {
     const r = await aiApi.generatePro({
       prompt: promptToSend,
       resolution: settings.resolution,
-      aspectRatio: settings.aspectRatio,
+      aspectRatio: getRequestAspectRatio(),
+      googleSearch: settings.googleSearch,
+      outputFormat: settings.outputFormat,
       chatId: currentChatId.value || null,
       imageUrls: refsState.urls,
       files: refsState.files,

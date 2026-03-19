@@ -13,6 +13,9 @@ const isAssistant = computed(() => props.msg.role === 'assistant')
 const successFlag = computed(() => props.msg?.meta?.successFlag)
 const resultUrl = computed(() => props.msg?.meta?.resultImageUrl || '')
 const errMsg = computed(() => props.msg?.meta?.errorMessage || '')
+const hasGenerationError = computed(() =>
+  successFlag.value === 2 || successFlag.value === 3 || !!errMsg.value
+)
 
 const modalOpen = ref(false)
 const copied = ref(false)
@@ -115,8 +118,8 @@ async function downloadImage() {
     <div v-if="isUser" class="text">{{ msg.content }}</div>
 
     <template v-else>
-      <div v-if="successFlag === 2 || successFlag === 3" class="err">
-        Ошибка: {{ errMsg || 'unknown' }}
+      <div v-if="hasGenerationError" class="err">
+        Ошибка при генерации
       </div>
 
       <template v-else-if="resultUrl">

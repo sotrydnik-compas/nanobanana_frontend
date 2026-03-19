@@ -351,6 +351,48 @@ function onThumbError(e) {
           <span class="res-sub">{{ opt.sub }}</span>
         </button>
       </div>
+
+      <div class="request-options">
+        <div class="request-option">
+          <div class="lbl option-lbl">Google поиск</div>
+          <div class="seg option-seg">
+            <button
+              class="segbtn option-btn"
+              :class="{ active: settings.googleSearch === true }"
+              @click="settings.googleSearch = true"
+            >
+              Да
+            </button>
+            <button
+              class="segbtn option-btn"
+              :class="{ active: settings.googleSearch === false }"
+              @click="settings.googleSearch = false"
+            >
+              Нет
+            </button>
+          </div>
+        </div>
+
+        <div class="request-option">
+          <div class="lbl option-lbl">Формат результата</div>
+          <div class="seg option-seg">
+            <button
+              class="segbtn option-btn"
+              :class="{ active: settings.outputFormat === 'png' }"
+              @click="settings.outputFormat = 'png'"
+            >
+              PNG
+            </button>
+            <button
+              class="segbtn option-btn"
+              :class="{ active: settings.outputFormat === 'jpg' }"
+              @click="settings.outputFormat = 'jpg'"
+            >
+              JPG
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-if="settings.mode === 'batch'" class="section">
@@ -674,6 +716,33 @@ function onThumbError(e) {
   gap: 8px;
 }
 
+.request-options {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.request-option {
+  min-width: 0;
+}
+
+.option-lbl {
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.option-seg {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.option-btn {
+  min-width: 0;
+}
+
 .resbtn {
   min-width: 0;
   min-height: 58px;
@@ -807,6 +876,10 @@ function onThumbError(e) {
   .resbtn {
     min-height: 54px;
     padding: 6px 6px;
+  }
+
+  .request-options {
+    grid-template-columns: 1fr;
   }
 
   .preview-grid {

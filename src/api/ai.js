@@ -26,11 +26,13 @@ export const aiApi = {
     apiJson(`${base}${endpoints.ai.task(taskId)}`),
 
   generatePro: (payload) => {
-    // payload: { prompt, resolution, aspectRatio, chatId?, imageUrls[], files[] }
+    // payload: { prompt, resolution, aspectRatio, googleSearch, outputFormat, chatId?, imageUrls[], files[] }
     const fd = new FormData()
     fd.append('prompt', payload.prompt)
     fd.append('resolution', payload.resolution || '1K')
-    fd.append('aspectRatio', payload.aspectRatio || 'auto')
+    fd.append('aspectRatio', payload.aspectRatio || '1:1')
+    fd.append('googleSearch', String(payload.googleSearch ?? true))
+    fd.append('outputFormat', payload.outputFormat || 'png')
 
     if (payload.chatId) fd.append('chat_id', payload.chatId)
 
@@ -42,14 +44,16 @@ export const aiApi = {
 
   generateBatch: (payload) => {
     // payload: {
-    //   prompt, resolution, aspectRatio, chatId?,
+    //   prompt, resolution, aspectRatio, googleSearch, outputFormat, chatId?,
     //   imageUrls[], files[],
     //   referenceUrls[], referenceFiles[]
     // }
     const fd = new FormData()
     fd.append('prompt', payload.prompt)
     fd.append('resolution', payload.resolution || '1K')
-    fd.append('aspectRatio', payload.aspectRatio || 'auto')
+    fd.append('aspectRatio', payload.aspectRatio || '1:1')
+    fd.append('googleSearch', String(payload.googleSearch ?? true))
+    fd.append('outputFormat', payload.outputFormat || 'png')
 
     if (payload.chatId) fd.append('chat_id', payload.chatId)
 
