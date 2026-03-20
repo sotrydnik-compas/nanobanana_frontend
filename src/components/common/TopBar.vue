@@ -30,8 +30,17 @@ const burgerMode = computed(() =>
 const requestsLeft = ref(null)
 const balanceBusy = ref(false)
 let balanceTimer = null
+const zeroBalanceOfferSeen = ref(false)
+const zeroBalanceOfferVisible = ref(false)
 
 const menuOpen = ref(false)
+
+const showZeroBalanceOffer = computed(() =>
+  zeroBalanceOfferVisible.value &&
+  isAuthed.value &&
+  requestsLeft.value === 0 &&
+  !isPayments.value
+)
 
 function closeMenu() {
   menuOpen.value = false
@@ -89,6 +98,12 @@ async function goPayments() {
   await router.push({ name: 'payments' })
 }
 
+async function goPaymentsFromZeroBalanceOffer() {
+  zeroBalanceOfferVisible.value = false
+  closeMenu()
+  await router.push({ name: 'payments' })
+}
+
 async function goAccount() {
   closeMenu()
   await router.push({ name: 'account' })
@@ -135,6 +150,8 @@ watch(isAuthed, async (v) => {
     startBalancePolling()
   } else {
     requestsLeft.value = null
+    zeroBalanceOfferSeen.value = false
+    zeroBalanceOfferVisible.value = false
     stopBalancePolling()
   }
 })
@@ -150,7 +167,30 @@ watch(
     if (isAuthed.value && (name === 'payments' || name === 'chat')) {
       await loadBalanceSafe()
     }
+
+    if (name === 'payments') {
+      zeroBalanceOfferVisible.value = false
+    }
   }
+)
+
+watch(
+  [isAuthed, requestsLeft, isPayments],
+  ([authed, balance, onPayments]) => {
+    if (!authed) return
+    if (balance == null) return
+
+    if (Number(balance) > 0) {
+      zeroBalanceOfferVisible.value = false
+      return
+    }
+
+    if (Number(balance) === 0 && !onPayments && !zeroBalanceOfferSeen.value) {
+      zeroBalanceOfferSeen.value = true
+      zeroBalanceOfferVisible.value = true
+    }
+  },
+  { immediate: true }
 )
 
 onBeforeUnmount(() => {
@@ -182,9 +222,20 @@ onBeforeUnmount(() => {
 
       <!-- Авторизован: баланс всегда в центре -->
       <template v-else>
-        <div class="balance">
-          <span class="balance-num">{{ requestsLeft ?? '—' }}</span>
-          <span class="balance-label">запросов</span>
+        <div class="balance-stack">
+          <div class="balance">
+            <span class="balance-num">{{ requestsLeft ?? '—' }}</span>
+            <span class="balance-label">запросов</span>
+          </div>
+
+          <button
+            v-if="showZeroBalanceOffer"
+            class="balance-alert"
+            type="button"
+            @click="goPaymentsFromZeroBalanceOffer"
+          >
+            пополнить
+          </button>
         </div>
 
         <button v-if="!isChat && !isAccount && !isPayments && !isAdmin" class="btn" type="button" @click="goPayments">
@@ -280,6 +331,13 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 
+.balance-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
 .right {
   justify-self: end;
   display: flex;
@@ -310,6 +368,25 @@ onBeforeUnmount(() => {
 }
 .balance-num { font-weight: 950; }
 .balance-label { color: var(--muted); font-size: 12px; font-weight: 800; }
+
+.balance-alert {
+  border: 0;
+  background: transparent;
+  color: var(--successText);
+  padding: 0;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.balance-alert:hover {
+  opacity: 0.85;
+}
 
 .btn {
   border: 1px solid var(--border);

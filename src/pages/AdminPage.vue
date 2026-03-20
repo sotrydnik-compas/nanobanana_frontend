@@ -254,15 +254,30 @@ async function deactivateUser(userId) {
 
 // ---- PLANS
 const plans = ref([])
-const planCreate = reactive({ title: '', price_minor: 0, requests_total: 100, currency: 'RUB', is_active: true })
+const planCreate = reactive({
+  title: '',
+  price_minor: 0,
+  requests_total: 100,
+  currency: 'RUB',
+  is_active: true,
+  is_system: false,
+})
 const planEditId = ref('')
 const planEdit = reactive({ title: '', price_minor: '', requests_total: '', currency: 'RUB', is_active: '' })
+
+function normalizePlan(plan = {}) {
+  return {
+    ...plan,
+    is_system: !!plan?.is_system,
+    is_purchasable: plan?.is_purchasable !== false,
+  }
+}
 
 async function loadPlans() {
   busy.value = true
   try {
     const r = await adminApi.billing.listPlans()
-    plans.value = r?.plans || []
+    plans.value = Array.isArray(r?.plans) ? r.plans.map(normalizePlan) : []
   } finally {
     busy.value = false
   }
@@ -302,6 +317,7 @@ async function createPlan() {
       requests_total: planCreate.requests_total,
       currency: 'RUB',
       is_active: planCreate.is_active,
+      is_system: planCreate.is_system,
     })
     infoText.value = 'Тариф создан.'
     planCreate.title = ''
@@ -309,6 +325,7 @@ async function createPlan() {
     planCreate.requests_total = 100
     planCreate.currency = 'RUB'
     planCreate.is_active = true
+    planCreate.is_system = false
     await loadPlans()
   } catch (e) {
     errorText.value = e?.message || 'Не удалось создать тариф'
@@ -987,19 +1004,29 @@ onMounted(async () => {
                   <option :value="false">Нет</option>
                 </select>
               </div>
+
+              <div class="field">
+                <div class="flabel">Системный</div>
+                <select class="inp" v-model="planCreate.is_system">
+                  <option :value="false">Нет</option>
+                  <option :value="true">Да</option>
+                </select>
+              </div>
             </div>
             <button class="btn primary" type="button" @click="createPlan" :disabled="busy">Создать</button>
           </div>
 
           <div class="table t-plans">
             <div class="tr head">
-              <div>Название</div><div>Запр.</div><div>Цена</div><div>Активен</div><div>ID</div><div>Действия</div>
+              <div>Название</div><div>Запр.</div><div>Цена</div><div>Активен</div><div>Системный</div><div>Покупаемый</div><div>ID</div><div>Действия</div>
             </div>
             <div v-for="p in plans" :key="p.id" class="tr">
               <div class="clip">{{ p.title }}</div>
               <div>{{ p.requests_total }}</div>
               <div>{{ p.price_minor }} RUB</div>
               <div>{{ yesNo(p.is_active) }}</div>
+              <div>{{ yesNo(p.is_system) }}</div>
+              <div>{{ yesNo(p.is_purchasable) }}</div>
               <div class="mono">{{ p.id }}</div>
               <div class="actions">
                 <button class="mini" type="button" @click="startEditPlan(p)">Редакт.</button>
@@ -1476,7 +1503,7 @@ onMounted(async () => {
 
 /* более “жидкие” колонки, чтобы не вылезать за карточку */
 .t-users .tr{ grid-template-columns: minmax(0,1.4fr) minmax(0,.8fr) minmax(0,.5fr) minmax(0,.55fr) minmax(0,1.2fr) minmax(0,220px); }
-.t-plans .tr{ grid-template-columns: minmax(0,1.4fr) minmax(0,.55fr) minmax(0,.7fr) minmax(0,.55fr) minmax(0,1.2fr) minmax(0,210px); }
+.t-plans .tr{ grid-template-columns: minmax(0,1.35fr) minmax(0,.55fr) minmax(0,.7fr) minmax(0,.58fr) minmax(0,.72fr) minmax(0,.78fr) minmax(0,1.1fr) minmax(0,210px); }
 .t-balances .tr{ grid-template-columns: minmax(0,1.6fr) minmax(0,.6fr) minmax(0,240px); }
 .t-payments .tr{ grid-template-columns: minmax(0,1.2fr) minmax(0,.7fr) minmax(0,.8fr) minmax(0,240px); }
 .t-templates .tr{ grid-template-columns: minmax(0,1.6fr) minmax(0,.7fr) minmax(0,.7fr) minmax(0,1.2fr) minmax(0,170px); }
@@ -1595,8 +1622,10 @@ onMounted(async () => {
   .t-plans .tr > div:nth-child(2)::before{ content: 'Запросов'; }
   .t-plans .tr > div:nth-child(3)::before{ content: 'Цена'; }
   .t-plans .tr > div:nth-child(4)::before{ content: 'Активен'; }
-  .t-plans .tr > div:nth-child(5)::before{ content: 'ID'; }
-  .t-plans .tr > div:nth-child(6)::before{ content: 'Действия'; }
+  .t-plans .tr > div:nth-child(5)::before{ content: 'Системный'; }
+  .t-plans .tr > div:nth-child(6)::before{ content: 'Покупаемый'; }
+  .t-plans .tr > div:nth-child(7)::before{ content: 'ID'; }
+  .t-plans .tr > div:nth-child(8)::before{ content: 'Действия'; }
 
   /* BALANCES labels */
   .t-balances .tr > div:nth-child(1)::before{ content: 'Пользователь'; }

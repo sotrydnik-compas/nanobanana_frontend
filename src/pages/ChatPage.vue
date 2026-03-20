@@ -130,7 +130,7 @@ function createDefaultSettings() {
   return {
     aspectRatio: '1:1',
     resolution: '1K',
-    googleSearch: true,
+    googleSearch: false,
     outputFormat: 'png',
     mode: 'standard', // standard | product_card | batch
     productVariant: 'studio', // studio | image | ugc

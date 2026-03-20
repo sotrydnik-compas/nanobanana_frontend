@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { authApi } from '../api/auth'
 
@@ -11,15 +11,35 @@ const code = ref('')
 const err = ref('')
 const info = ref('')
 const loading = ref(false)
+const redirecting = ref(false)
+
+let redirectTimer = null
+
+function clearRedirectTimer() {
+  if (redirectTimer) {
+    clearTimeout(redirectTimer)
+    redirectTimer = null
+  }
+}
+
+function scheduleLoginRedirect() {
+  clearRedirectTimer()
+  redirecting.value = true
+  redirectTimer = setTimeout(() => {
+    router.replace('/login')
+  }, 2500)
+}
 
 async function onVerify() {
+  if (redirecting.value) return
+
   err.value = ''
   info.value = ''
   loading.value = true
   try {
     await authApi.verifyEmail(email.value.trim(), code.value.trim())
-    info.value = 'Email подтвержден. Можно входить.'
-    router.replace('/login')
+    info.value = 'Верификация успешна. Перенаправляем на страницу входа.'
+    scheduleLoginRedirect()
   } catch (e) {
     err.value = e?.message || 'Ошибка подтверждения'
   } finally {
@@ -28,6 +48,8 @@ async function onVerify() {
 }
 
 async function onResend() {
+  if (redirecting.value) return
+
   err.value = ''
   info.value = ''
   try {
@@ -37,6 +59,10 @@ async function onResend() {
     err.value = e?.message || 'Ошибка отправки'
   }
 }
+
+onBeforeUnmount(() => {
+  clearRedirectTimer()
+})
 </script>
 
 <template>
@@ -50,11 +76,11 @@ async function onResend() {
       <label class="lbl">Код (6 цифр)</label>
       <input class="inp" v-model="code" placeholder="123456" />
 
-      <button class="btn primary" :disabled="loading" @click="onVerify">
-        {{ loading ? 'Проверяем…' : 'Подтвердить' }}
+      <button class="btn primary" :disabled="loading || redirecting" @click="onVerify">
+        {{ loading ? 'Проверяем…' : redirecting ? 'Переходим ко входу…' : 'Подтвердить' }}
       </button>
 
-      <button class="btn" type="button" @click="onResend">Отправить код ещё раз</button>
+      <button class="btn" type="button" :disabled="redirecting" @click="onResend">Отправить код ещё раз</button>
 
       <div v-if="err" class="alert">{{ err }}</div>
       <div v-if="info" class="alert ok">{{ info }}</div>
