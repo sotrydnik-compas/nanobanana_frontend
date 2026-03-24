@@ -13,9 +13,28 @@ const isAssistant = computed(() => props.msg.role === 'assistant')
 const successFlag = computed(() => props.msg?.meta?.successFlag)
 const resultUrl = computed(() => props.msg?.meta?.resultImageUrl || '')
 const errMsg = computed(() => props.msg?.meta?.errorMessage || '')
+const contentErrorText = computed(() => String(props.msg?.content || '').trim())
+const rawGenerationError = computed(() => contentErrorText.value || errMsg.value || '')
 const hasGenerationError = computed(() =>
-  successFlag.value === 2 || successFlag.value === 3 || !!errMsg.value
+  successFlag.value === 2 || successFlag.value === 3 || !!rawGenerationError.value
 )
+const generationErrorText = computed(() => {
+  const text = rawGenerationError.value
+  const normalizedText = text.toLowerCase()
+
+  if (normalizedText.includes('deadline expired before operation could complete.')) {
+    return 'Сервис временно недоступен: превышено время ожидания ответа'
+  }
+
+  if (
+    normalizedText.includes('this model is currently experiencing high demand. spikes in demand are usually temporary. please try again later.') ||
+    normalizedText.includes('internal error encountered.')
+  ) {
+    return 'Сервис временно перегружен. Попробуйте повторить операцию позже.'
+  }
+
+  return 'Ошибка при генерации'
+})
 
 const modalOpen = ref(false)
 const copied = ref(false)
@@ -119,7 +138,7 @@ async function downloadImage() {
 
     <template v-else>
       <div v-if="hasGenerationError" class="err">
-        Ошибка при генерации
+        {{ generationErrorText }}
       </div>
 
       <template v-else-if="resultUrl">

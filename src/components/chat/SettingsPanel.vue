@@ -63,7 +63,7 @@ const referenceFileInput = ref(null)
 const urlInput = ref('')
 const referenceUrlInput = ref('')
 
-const maxSizeMB = 10
+const maxSizeMB = 100
 const allowed = ['image/jpeg', 'image/png', 'image/webp']
 
 const maxMainTotal = computed(() => (props.settings.mode === 'batch' ? 100 : 7))
@@ -401,6 +401,7 @@ function onThumbError(e) {
         Эти изображения будут общими для всего пакета. Максимум 5.
       </div>
 
+<!--
       <div class="subsection">
         <div class="lbl sub-lbl">URL общих референсов (до 5)</div>
         <div class="row">
@@ -420,6 +421,7 @@ function onThumbError(e) {
           </div>
         </div>
       </div>
+      -->
 
       <div class="subsection">
         <div class="lbl sub-lbl">Файлы общих референсов (jpg/png/webp, до {{ maxSizeMB }}MB)</div>
@@ -466,6 +468,7 @@ function onThumbError(e) {
       </div>
     </div>
 
+<!--
     <div class="section">
       <div class="lbl">
         {{ settings.mode === 'batch' ? 'URL изображений для пакетной обработки (до 100)' : 'URL-референсы' }}
@@ -488,6 +491,7 @@ function onThumbError(e) {
         </div>
       </div>
     </div>
+    -->
 
     <div class="section">
       <div class="lbl">

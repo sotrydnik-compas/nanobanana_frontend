@@ -775,6 +775,26 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="shell" :class="{ embed: isEmbed }">
+    <div class="mobile-edge-actions">
+      <button
+        class="edge-btn edge-btn-left"
+        type="button"
+        aria-label="Открыть чаты"
+        @click="showChatsDrawer = true"
+      >
+        <span class="edge-icon">❯</span>
+      </button>
+
+      <button
+        class="edge-btn edge-btn-right"
+        type="button"
+        aria-label="Открыть параметры"
+        @click="showSettingsDrawer = true"
+      >
+        <span class="edge-icon">❮</span>
+      </button>
+    </div>
+
     <div class="layout">
       <!-- DESKTOP: список чатов слева -->
       <aside class="left desktop-only">
@@ -879,6 +899,11 @@ onBeforeUnmount(() => {
 .shell {
   height: 100%;
   min-height: 0;
+  position: relative;
+}
+
+.mobile-edge-actions {
+  display: none;
 }
 
 .layout {
@@ -911,6 +936,47 @@ onBeforeUnmount(() => {
   max-width: 360px;
 }
 
+.edge-btn {
+  width: 42px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0,0,0,.08);
+}
+
+.edge-icon {
+  display: block;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.edge-btn-left .edge-icon {
+  transform: translate(4px, -1px);
+}
+
+.edge-btn-right .edge-icon {
+  transform: translate(-4px, -1px);
+}
+
+.edge-btn-left {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.edge-btn-right {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .center-inner {
   height: 100%;
   min-height: 0;
@@ -939,6 +1005,22 @@ onBeforeUnmount(() => {
 
 /* MOBILE: скрываем боковые панели, включаем drawer */
 @media (max-width: 980px) {
+  .mobile-edge-actions {
+    position: fixed;
+    top: 50%;
+    left: -12px;
+    right: -12px;
+    z-index: 70;
+    display: flex;
+    justify-content: space-between;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .edge-btn {
+    pointer-events: auto;
+  }
+
   .layout { padding: 10px; }
   .desktop-only { display: none; }
   .left, .right { display: none; }

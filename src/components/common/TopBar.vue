@@ -203,7 +203,7 @@ onBeforeUnmount(() => {
   <header class="bar">
     <!-- LEFT -->
     <button class="brand" type="button" @click="isAuthed ? goChat() : goHome()">
-      NanoBanana Pro
+      Reactor.pw
     </button>
 
     <!-- CENTER -->
