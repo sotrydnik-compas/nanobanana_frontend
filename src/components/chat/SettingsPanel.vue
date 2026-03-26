@@ -264,7 +264,7 @@ function onThumbError(e) {
       <div class="lbl">Режим</div>
       <div class="seg mode-seg">
         <button class="segbtn" :class="{ active: settings.mode === 'standard' }" @click="settings.mode='standard'">
-          Стандартный
+          Диалоговый
         </button>
         <button class="segbtn" :class="{ active: settings.mode === 'product_card' }" @click="settings.mode='product_card'">
           Карточка товара
