@@ -140,6 +140,7 @@ function createDefaultSettings() {
 }
 
 const settings = reactive(createDefaultSettings())
+const isStandardMode = computed(() => settings.mode === 'standard')
 
 const refsState = reactive({
   urls: [],
@@ -149,6 +150,40 @@ const refsState = reactive({
 })
 
 const settingsPanelKey = ref(0)
+
+const MAIN_FILE_MAX_SIZE_MB = 100
+const MAIN_FILE_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+
+function buildNextMainFiles(fileList, currentFiles, limitLeft) {
+  const arr = Array.from(fileList || [])
+  if (!arr.length || limitLeft <= 0) return [...currentFiles]
+
+  const next = [...currentFiles]
+  let left = limitLeft
+
+  for (const f of arr) {
+    if (left <= 0) break
+    if (!MAIN_FILE_ALLOWED_TYPES.includes(f.type)) continue
+    if (f.size > MAIN_FILE_MAX_SIZE_MB * 1024 * 1024) continue
+    next.push(f)
+    left--
+  }
+
+  return next
+}
+
+function onComposerAddFiles(fileList) {
+  const totalRefs = (refsState.urls?.length || 0) + (refsState.files?.length || 0)
+  const maxRefs = settings.mode === 'batch' ? 100 : 7
+  const limitLeft = Math.max(0, maxRefs - totalRefs)
+  refsState.files = buildNextMainFiles(fileList, refsState.files, limitLeft)
+}
+
+function onComposerRemoveFile(idx) {
+  const next = [...refsState.files]
+  next.splice(idx, 1)
+  refsState.files = next
+}
 
 function resetSettingsPanelState() {
   Object.assign(settings, createDefaultSettings())
@@ -818,6 +853,7 @@ onBeforeUnmount(() => {
               :messages="messages"
               :loading="messagesLoading"
               :taskInFlight="taskInFlight"
+              :assistantResultUrls="downloadableImageUrls"
             />
           </div>
 
@@ -829,10 +865,14 @@ onBeforeUnmount(() => {
             :placeholder="settings.mode === 'product_card' ? 'Промпт формируется из параметров' : 'Введите запрос…'"
             :showDownloadAll="downloadableImageUrls.length > 0"
             :downloadCount="downloadableImageUrls.length"
+            :standardMode="isStandardMode"
+            :attachedFiles="refsState.files"
             @send="onSend"
             @downloadAll="onDownloadAll"
             @openChats="showChatsDrawer = true"
             @openSettings="showSettingsDrawer = true"
+            @addFiles="onComposerAddFiles"
+            @removeFile="onComposerRemoveFile"
           />
 
           <button

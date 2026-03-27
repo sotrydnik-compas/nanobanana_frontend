@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 
 const props = defineProps({
   msg: { type: Object, required: true },
+  assistantResultUrls: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['imageLoaded'])
@@ -36,30 +37,107 @@ const generationErrorText = computed(() => {
   return 'Ошибка при генерации'
 })
 
+function normalizeCompareUrl(url) {
+  const raw = String(url || '').trim()
+  if (!raw) return ''
+
+  try {
+    const base = typeof window !== 'undefined' ? window.location.origin : 'http://localhost'
+    const parsed = new URL(raw, base)
+    return `${parsed.origin}${parsed.pathname}`
+  } catch {
+    return raw
+  }
+}
+
+const userReferenceUrls = computed(() => {
+  const meta = props.msg?.meta || {}
+  const seen = new Set()
+  const urls = []
+  const raw = []
+
+  if (Array.isArray(meta.imageUrls)) raw.push(...meta.imageUrls)
+  if (Array.isArray(meta.image_urls)) raw.push(...meta.image_urls)
+  if (typeof meta.image_url === 'string') raw.push(meta.image_url)
+  if (typeof meta.imageUrl === 'string') raw.push(meta.imageUrl)
+
+  for (const item of raw) {
+    const url = String(item || '').trim()
+    if (!url || seen.has(url)) continue
+    seen.add(url)
+    urls.push(url)
+  }
+
+  return urls
+})
+
+const assistantResultUrlSet = computed(() => {
+  const set = new Set()
+
+  for (const item of props.assistantResultUrls || []) {
+    const normalized = normalizeCompareUrl(item)
+    if (normalized) set.add(normalized)
+  }
+
+  return set
+})
+
+const visibleUserReferenceUrls = computed(() =>
+  userReferenceUrls.value.filter((url) => !assistantResultUrlSet.value.has(normalizeCompareUrl(url)))
+)
+
+const userRefsLayout = computed(() => {
+  const count = visibleUserReferenceUrls.value.length
+  if (!count) return {}
+
+  let columns = 1
+  if (count >= 2 && count <= 4) columns = 2
+  else if (count >= 5) columns = 3
+
+  let tileSize = 120
+  if (count >= 3 && count <= 4) tileSize = 88
+  else if (count >= 5 && count <= 6) tileSize = 68
+  else if (count >= 7) tileSize = 56
+
+  const gap = count === 1 ? 0 : 8
+  const width = columns * tileSize + (columns - 1) * gap
+
+  return {
+    width: `${width}px`,
+    gap: `${gap}px`,
+    gridTemplateColumns: `repeat(${columns}, minmax(0, ${tileSize}px))`,
+  }
+})
+
 const modalOpen = ref(false)
+const modalImageUrl = ref('')
 const copied = ref(false)
 
-function openModal() {
+function openModal(url = resultUrl.value) {
+  const target = String(url || '').trim()
+  if (!target) return
+  modalImageUrl.value = target
   modalOpen.value = true
 }
 
 function closeModal() {
   modalOpen.value = false
+  modalImageUrl.value = ''
 }
 
 function onImageLoad() {
   emit('imageLoaded')
 }
 
-async function copyLink() {
-  const url = resultUrl.value
-  if (!url) return
+async function copyLink(url = resultUrl.value) {
+  const target = String(url || '').trim()
+  if (!target) return
 
   try {
-    await navigator.clipboard.writeText(url)
+    await navigator.clipboard.writeText(target)
   } catch {
     const ta = document.createElement('textarea')
-    ta.value = url
+    ta.value = target
     ta.style.position = 'fixed'
     ta.style.left = '-9999px'
     document.body.appendChild(ta)
@@ -103,12 +181,12 @@ function openUrlInNewTab(url) {
   a.remove()
 }
 
-async function downloadImage() {
-  const url = resultUrl.value
-  if (!url) return
+async function downloadImage(url = resultUrl.value, fallbackName = 'generated-image') {
+  const target = String(url || '').trim()
+  if (!target) return
 
   try {
-    const resp = await fetch(url, { mode: 'cors' })
+    const resp = await fetch(target, { mode: 'cors' })
     if (!resp.ok) throw new Error('download_failed')
 
     const blob = await resp.blob()
@@ -117,8 +195,8 @@ async function downloadImage() {
     const a = document.createElement('a')
     a.href = objectUrl
     a.download = buildDownloadName(
-      url,
-      'generated-image',
+      target,
+      fallbackName,
       resp.headers.get('content-type') || ''
     )
     document.body.appendChild(a)
@@ -127,53 +205,75 @@ async function downloadImage() {
 
     setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
   } catch {
-    openUrlInNewTab(url)
+    openUrlInNewTab(target)
   }
 }
 </script>
 
 <template>
-  <div class="bubble" :class="{ user: isUser, assistant: isAssistant }">
-    <div v-if="isUser" class="text">{{ msg.content }}</div>
+  <template v-if="isUser">
+    <div v-if="msg.content" class="bubble user">
+      <div class="text">{{ msg.content }}</div>
+    </div>
 
-    <template v-else>
-      <div v-if="hasGenerationError" class="err">
-        {{ generationErrorText }}
-      </div>
-
-      <template v-else-if="resultUrl">
+    <div v-if="visibleUserReferenceUrls.length" class="bubble user refs-bubble">
+      <div
+        class="user-refs"
+        :class="{ single: visibleUserReferenceUrls.length === 1 }"
+        :style="userRefsLayout"
+      >
         <img
-          class="img"
-          :src="resultUrl"
-          alt="result"
+          v-for="(url, idx) in visibleUserReferenceUrls"
+          :key="`${url}-${idx}`"
+          class="user-ref-img"
+          :src="url"
+          alt="reference"
           loading="lazy"
           decoding="async"
-          @click="openModal"
+          @click="openModal(url)"
           @load="onImageLoad"
         />
+      </div>
+    </div>
+  </template>
 
-        <div class="actions">
-          <button class="act" type="button" @click.stop="copyLink">↗ Поделиться</button>
-          <button class="act" type="button" @click.stop="downloadImage">⬇ Скачать</button>
-          <span v-if="copied" class="copied">Ссылка скопирована</span>
-        </div>
+  <div v-else class="bubble assistant">
+    <div v-if="hasGenerationError" class="err">
+      {{ generationErrorText }}
+    </div>
 
-        <div v-if="modalOpen" class="modal" @click.self="closeModal">
-          <div class="modal-inner">
-            <button class="close" type="button" @click="closeModal">✕</button>
-            <img class="modal-img" :src="resultUrl" alt="original" />
+    <template v-else-if="resultUrl">
+      <img
+        class="img"
+        :src="resultUrl"
+        alt="result"
+        loading="lazy"
+        decoding="async"
+        @click="openModal(resultUrl)"
+        @load="onImageLoad"
+      />
 
-            <div class="modal-actions">
-              <button class="act" type="button" @click="copyLink">↗ Поделиться</button>
-              <button class="act" type="button" @click="downloadImage">⬇ Скачать</button>
-              <span v-if="copied" class="copied">Ссылка скопирована</span>
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <div v-else class="muted">…</div>
+      <div class="actions">
+        <button class="act" type="button" @click.stop="copyLink(resultUrl)">↗ Поделиться</button>
+        <button class="act" type="button" @click.stop="downloadImage(resultUrl)">⬇ Скачать</button>
+        <span v-if="copied" class="copied">Ссылка скопирована</span>
+      </div>
     </template>
+
+    <div v-else class="muted">…</div>
+  </div>
+
+  <div v-if="modalOpen && modalImageUrl" class="modal" @click.self="closeModal">
+    <div class="modal-inner">
+      <button class="close" type="button" @click="closeModal">✕</button>
+      <img class="modal-img" :src="modalImageUrl" alt="original" />
+
+      <div class="modal-actions">
+        <button class="act" type="button" @click="copyLink(modalImageUrl)">↗ Поделиться</button>
+        <button class="act" type="button" @click="downloadImage(modalImageUrl, 'chat-image')">⬇ Скачать</button>
+        <span v-if="copied" class="copied">Ссылка скопирована</span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -200,11 +300,36 @@ async function downloadImage() {
   align-self: flex-start;
 }
 
+.refs-bubble {
+  padding: 10px;
+  width: fit-content;
+}
+
 .text {
   white-space: pre-wrap;
   font-size: 13px;
   font-weight: 700;
   color: var(--text);
+}
+
+.user-refs {
+  display: inline-grid;
+  justify-content: end;
+}
+
+.user-refs.single {
+  width: auto !important;
+}
+
+.user-ref-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  display: block;
+  background: var(--card);
+  cursor: zoom-in;
 }
 
 .img {

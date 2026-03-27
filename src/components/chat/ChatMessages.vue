@@ -7,6 +7,7 @@ const props = defineProps({
   messages: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
   taskInFlight: { type: Boolean, default: false },
+  assistantResultUrls: { type: Array, default: () => [] },
 })
 
 const wrapRef = ref(null)
@@ -70,6 +71,7 @@ onBeforeUnmount(() => {
         v-for="m in messages"
         :key="m.id"
         :msg="m"
+        :assistantResultUrls="assistantResultUrls"
         @imageLoaded="scheduleScrollToBottom"
       />
 

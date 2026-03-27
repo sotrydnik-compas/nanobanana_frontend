@@ -493,7 +493,7 @@ function onThumbError(e) {
     </div>
     -->
 
-    <div class="section">
+    <div v-if="settings.mode !== 'standard'" class="section">
       <div class="lbl">
         {{ settings.mode === 'batch' ? 'Файлы для пакетной обработки (до 100, jpg/png/webp)' : `Файлы (jpg/png/webp, до ${maxSizeMB}MB)` }}
       </div>
