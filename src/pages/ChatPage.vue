@@ -185,6 +185,11 @@ function onComposerRemoveFile(idx) {
   refsState.files = next
 }
 
+function clearStandardComposerFiles() {
+  if (!isStandardMode.value) return
+  refsState.files = []
+}
+
 function resetSettingsPanelState() {
   Object.assign(settings, createDefaultSettings())
   refsState.urls = []
@@ -707,6 +712,8 @@ async function onSend(userPrompt) {
     promptToSend = buildBatchPrompt(promptToSend)
   }
 
+  const standardFilesSnapshot = isStandardMode.value ? [...refsState.files] : null
+
   composerRef.value?.clearPrompt()
 
   taskInFlight.value = true
@@ -756,6 +763,10 @@ async function onSend(userPrompt) {
 
     inFlightKind.value = 'task'
 
+    if (standardFilesSnapshot) {
+      clearStandardComposerFiles()
+    }
+
     const r = await aiApi.generatePro({
       prompt: promptToSend,
       resolution: settings.resolution,
@@ -764,7 +775,7 @@ async function onSend(userPrompt) {
       outputFormat: settings.outputFormat,
       chatId: currentChatId.value || null,
       imageUrls: refsState.urls,
-      files: refsState.files,
+      files: standardFilesSnapshot || refsState.files,
     })
 
     currentTaskId.value = r.taskId
@@ -786,6 +797,10 @@ async function onSend(userPrompt) {
 
     await startTaskPolling(r.taskId, currentChatId.value)
   } catch (e) {
+    if (standardFilesSnapshot) {
+      refsState.files = standardFilesSnapshot
+    }
+
     taskInFlight.value = false
     inFlightKind.value = ''
 
