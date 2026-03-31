@@ -225,7 +225,7 @@ onBeforeUnmount(() => {
         <div class="balance-stack">
           <div class="balance">
             <span class="balance-num">{{ requestsLeft ?? '—' }}</span>
-            <span class="balance-label">запросов</span>
+            <span class="balance-label">генераций</span>
           </div>
 
           <button

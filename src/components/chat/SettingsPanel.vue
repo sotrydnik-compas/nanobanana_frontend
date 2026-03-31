@@ -890,4 +890,30 @@ function onThumbError(e) {
     gap: 7px;
   }
 }
+
+:global(.widget-compact-980) .aspect-grid {
+  gap: 6px;
+}
+
+:global(.widget-compact-980) .aspectbtn {
+  min-height: 60px;
+  padding: 6px 3px;
+}
+
+:global(.widget-compact-980) .aspect-text {
+  font-size: 10px;
+}
+
+:global(.widget-compact-980) .resbtn {
+  min-height: 54px;
+  padding: 6px 6px;
+}
+
+:global(.widget-compact-980) .request-options {
+  grid-template-columns: 1fr;
+}
+
+:global(.widget-compact-980) .preview-grid {
+  gap: 7px;
+}
 </style>

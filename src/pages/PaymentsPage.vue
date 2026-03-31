@@ -50,7 +50,7 @@ async function buyPlan(planId) {
   const p = (plans.value || []).find(x => x.id === planId) || null
   const ok = await confirm({
     title: 'Купить тариф?',
-    text: p ? `${p.title} — ${p.requests_total} запросов за ${money(p.price_minor, p.currency)}.` : 'Подтвердите покупку тарифа.',
+    text: p ? `${p.title} — ${p.requests_total} генераций за ${money(p.price_minor, p.currency)}.` : 'Подтвердите покупку тарифа.',
     yesText: 'Купить',
     noText: 'Отмена',
   })
@@ -164,7 +164,7 @@ onBeforeUnmount(() => {
     <div class="top">
       <div>
         <div class="title">Платежи</div>
-        <div class="sub">Баланс запросов и история оплат</div>
+        <div class="sub">Баланс генераций и история оплат</div>
       </div>
 
       <div class="top-actions">
@@ -176,7 +176,7 @@ onBeforeUnmount(() => {
       <div class="card-title">Баланс</div>
       <div class="balance">
         <div class="balance-num">{{ balance.requests_left }}</div>
-        <div class="balance-label">запросов осталось</div>
+        <div class="balance-label">генераций осталось</div>
       </div>
       <div class="muted" v-if="pendingPayments.length">
         Есть pending-платежи ({{ pendingPayments.length }}). Автопроверка каждые 30 секунд.
@@ -192,7 +192,7 @@ onBeforeUnmount(() => {
         <div v-for="p in plans" :key="p.id" class="plan">
           <div class="plan-title">{{ p.title }}</div>
           <div class="plan-meta">
-            <div class="pill">{{ p.requests_total }} запросов</div>
+            <div class="pill">{{ p.requests_total }} генераций</div>
             <div class="pill">{{ money(p.price_minor, p.currency) }}</div>
           </div>
           <button class="btn primary" type="button" @click="buyPlan(p.id)" :disabled="busy">
@@ -362,4 +362,8 @@ onBeforeUnmount(() => {
   .tr { grid-template-columns: 1fr; }
   .tr.head { display: none; }
 }
+
+:global(.widget-compact-900) .plans { grid-template-columns: 1fr; }
+:global(.widget-compact-900) .tr { grid-template-columns: 1fr; }
+:global(.widget-compact-900) .tr.head { display: none; }
 </style>

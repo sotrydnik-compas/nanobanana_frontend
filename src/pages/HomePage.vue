@@ -57,6 +57,10 @@ async function goLogin() {
   await router.push({ name: 'login', query: { next: '/home#plans' } })
 }
 
+async function goRegister() {
+  await router.push({ name: 'register' })
+}
+
 async function goChat() {
   await router.push({ name: 'chat' })
 }
@@ -130,13 +134,20 @@ onMounted(load)
       <div class="block-top">
         <div>
           <div class="title">Тарифы</div>
-          <div class="sub">Выберите план и пополните баланс запросов</div>
+          <div class="sub">Выберите план и пополните баланс генераций</div>
         </div>
       </div>
 
       <div v-if="!plans.length" class="muted">Нет активных тарифов.</div>
 
       <div v-else class="plans">
+        <button class="plan promo-plan" type="button" @click="goRegister">
+          <div class="plan-title promo-title">
+            <span>Зарегистрируйся и получи</span>
+            <span>10 генераций в подарок</span>
+          </div>
+        </button>
+
         <button
           v-for="p in plans"
           :key="p.id"
@@ -147,7 +158,7 @@ onMounted(load)
         >
           <div class="plan-title">{{ p.title }}</div>
           <div class="plan-price">{{ money(p.price_minor, p.currency) }}</div>
-          <div class="plan-meta">{{ p.requests_total }} запросов</div>
+          <div class="plan-meta">{{ p.requests_total }} генераций</div>
         </button>
       </div>
 
@@ -265,6 +276,19 @@ onMounted(load)
 }
 .plan:hover { background: var(--card2Hover); }
 
+.promo-plan {
+  justify-content: flex-start;
+  padding-top: 10px;
+}
+
+.promo-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
 .plan.selected {
   border-color: var(--primary);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
@@ -313,4 +337,8 @@ onMounted(load)
   .plans { grid-template-columns: 1fr; }
   .h1 { font-size: 30px; }
 }
+
+:global(.widget-compact-640) .gallery { grid-template-columns: 1fr; }
+:global(.widget-compact-640) .plans { grid-template-columns: 1fr; }
+:global(.widget-compact-640) .h1 { font-size: 30px; }
 </style>

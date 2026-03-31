@@ -1661,4 +1661,75 @@ onMounted(async () => {
   .t-batches .tr > div:nth-child(5)::before{ content: 'Batch'; }
   .t-batches .tr > div:nth-child(6)::before{ content: 'Действия'; }
 }
+
+:global(.widget-compact-980) .wrap{ flex-direction: column; }
+:global(.widget-compact-980) .menu{ flex: 0 0 auto; }
+:global(.widget-compact-980) .grid2{ grid-template-columns: 1fr; }
+:global(.widget-compact-980) .filters-row{ grid-template-columns: 1fr; }
+:global(.widget-compact-980) .samples{ grid-template-columns: 1fr; }
+
+:global(.widget-compact-980) .tr{ grid-template-columns: 1fr !important; }
+:global(.widget-compact-980) .tr.head{ display:none; }
+
+:global(.widget-compact-980) .table .tr > div{
+  display:flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+:global(.widget-compact-980) .table .tr > div::before{
+  font-weight: 900;
+  font-size: 12px;
+  color: var(--theadText);
+  opacity: .9;
+}
+:global(.widget-compact-980) .actions{
+  justify-content:flex-start;
+  align-items:flex-start;
+}
+
+:global(.widget-compact-980) .t-users .tr > div:nth-child(1)::before{ content: 'Email'; }
+:global(.widget-compact-980) .t-users .tr > div:nth-child(2)::before{ content: 'Роль'; }
+:global(.widget-compact-980) .t-users .tr > div:nth-child(3)::before{ content: 'Активен'; }
+:global(.widget-compact-980) .t-users .tr > div:nth-child(4)::before{ content: 'Подтв.'; }
+:global(.widget-compact-980) .t-users .tr > div:nth-child(5)::before{ content: 'ID'; }
+:global(.widget-compact-980) .t-users .tr > div:nth-child(6)::before{ content: 'Действия'; }
+
+:global(.widget-compact-980) .t-plans .tr > div:nth-child(1)::before{ content: 'Название'; }
+:global(.widget-compact-980) .t-plans .tr > div:nth-child(2)::before{ content: 'Запросов'; }
+:global(.widget-compact-980) .t-plans .tr > div:nth-child(3)::before{ content: 'Цена'; }
+:global(.widget-compact-980) .t-plans .tr > div:nth-child(4)::before{ content: 'Активен'; }
+:global(.widget-compact-980) .t-plans .tr > div:nth-child(5)::before{ content: 'Системный'; }
+:global(.widget-compact-980) .t-plans .tr > div:nth-child(6)::before{ content: 'Покупаемый'; }
+:global(.widget-compact-980) .t-plans .tr > div:nth-child(7)::before{ content: 'ID'; }
+:global(.widget-compact-980) .t-plans .tr > div:nth-child(8)::before{ content: 'Действия'; }
+
+:global(.widget-compact-980) .t-balances .tr > div:nth-child(1)::before{ content: 'Пользователь'; }
+:global(.widget-compact-980) .t-balances .tr > div:nth-child(2)::before{ content: 'Запросов'; }
+:global(.widget-compact-980) .t-balances .tr > div:nth-child(3)::before{ content: 'Обновлён'; }
+
+:global(.widget-compact-980) .t-payments .tr > div:nth-child(1)::before{ content: 'ID'; }
+:global(.widget-compact-980) .t-payments .tr > div:nth-child(2)::before{ content: 'Статус'; }
+:global(.widget-compact-980) .t-payments .tr > div:nth-child(3)::before{ content: 'Сумма'; }
+:global(.widget-compact-980) .t-payments .tr > div:nth-child(4)::before{ content: 'Создан'; }
+
+:global(.widget-compact-980) .t-templates .tr > div:nth-child(1)::before{ content: 'Название'; }
+:global(.widget-compact-980) .t-templates .tr > div:nth-child(2)::before{ content: 'Активен'; }
+:global(.widget-compact-980) .t-templates .tr > div:nth-child(3)::before{ content: 'Вариантов'; }
+:global(.widget-compact-980) .t-templates .tr > div:nth-child(4)::before{ content: 'ID'; }
+:global(.widget-compact-980) .t-templates .tr > div:nth-child(5)::before{ content: 'Действия'; }
+
+:global(.widget-compact-980) .t-variants .tr > div:nth-child(1)::before{ content: 'Ключ'; }
+:global(.widget-compact-980) .t-variants .tr > div:nth-child(2)::before{ content: 'Название'; }
+:global(.widget-compact-980) .t-variants .tr > div:nth-child(3)::before{ content: 'Порядок'; }
+:global(.widget-compact-980) .t-variants .tr > div:nth-child(4)::before{ content: 'Активен'; }
+:global(.widget-compact-980) .t-variants .tr > div:nth-child(5)::before{ content: 'ID'; }
+:global(.widget-compact-980) .t-variants .tr > div:nth-child(6)::before{ content: 'Действия'; }
+
+:global(.widget-compact-980) .t-batches .tr > div:nth-child(1)::before{ content: 'Статус'; }
+:global(.widget-compact-980) .t-batches .tr > div:nth-child(2)::before{ content: 'Всего'; }
+:global(.widget-compact-980) .t-batches .tr > div:nth-child(3)::before{ content: 'Готово'; }
+:global(.widget-compact-980) .t-batches .tr > div:nth-child(4)::before{ content: 'Пользователь'; }
+:global(.widget-compact-980) .t-batches .tr > div:nth-child(5)::before{ content: 'Batch'; }
+:global(.widget-compact-980) .t-batches .tr > div:nth-child(6)::before{ content: 'Действия'; }
 </style>

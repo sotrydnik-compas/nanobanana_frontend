@@ -1081,6 +1081,27 @@ onBeforeUnmount(() => {
   .left, .right { display: none; }
 }
 
+:global(.widget-compact-980) .mobile-edge-actions {
+  position: fixed;
+  top: 50%;
+  left: -12px;
+  right: -12px;
+  z-index: 70;
+  display: flex;
+  justify-content: space-between;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+:global(.widget-compact-980) .edge-btn {
+  pointer-events: auto;
+}
+
+:global(.widget-compact-980) .layout { padding: 10px; }
+:global(.widget-compact-980) .desktop-only { display: none; }
+:global(.widget-compact-980) .left,
+:global(.widget-compact-980) .right { display: none; }
+
 /* drawer */
 .overlay {
   position: fixed;
@@ -1125,5 +1146,13 @@ onBeforeUnmount(() => {
   .chat-tools .btn {
     width: 100%;
   }
+}
+
+:global(.widget-compact-980) .chat-tools {
+  justify-content: stretch;
+}
+
+:global(.widget-compact-980) .chat-tools .btn {
+  width: 100%;
 }
 </style>

@@ -333,4 +333,26 @@ defineExpose({ clearPrompt })
     max-width: 100%;
   }
 }
+
+:global(.widget-compact-980) .only-mobile {
+  display: inline-flex;
+}
+
+:global(.widget-compact-980) .row {
+  align-items: flex-start;
+}
+
+:global(.widget-compact-980) .actions {
+  justify-content: flex-start;
+}
+
+:global(.widget-compact-980) .send-btn,
+:global(.widget-compact-980) .download-btn {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+:global(.widget-compact-980) .file-chip {
+  max-width: 100%;
+}
 </style>

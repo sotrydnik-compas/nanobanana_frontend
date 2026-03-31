@@ -14,11 +14,24 @@ const router = useRouter()
 
 const isEmbed = computed(() => route.query.embed === '1')
 const hideChrome = computed(() => !!route.meta.hideChrome || isEmbed.value)
+const appEl = ref(null)
+const responsiveWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 0)
 
 const isMobileViewport = ref(typeof window !== 'undefined' ? window.innerWidth <= 980 : false)
+let appResizeObserver = null
+
+function getResponsiveWidth() {
+  if (isEmbed.value && appEl.value) {
+    const width = appEl.value.getBoundingClientRect().width
+    if (width > 0) return width
+  }
+
+  return window.innerWidth
+}
 
 function syncViewportMode() {
-  isMobileViewport.value = window.innerWidth <= 980
+  responsiveWidth.value = getResponsiveWidth()
+  isMobileViewport.value = responsiveWidth.value <= 980
 }
 
 const chatFooterInFlow = computed(() =>
@@ -57,8 +70,18 @@ watch(
   }
 )
 
+watch(isEmbed, () => {
+  syncViewportMode()
+})
+
 onMounted(async () => {
   window.addEventListener('resize', syncViewportMode)
+  if (typeof ResizeObserver !== 'undefined' && appEl.value) {
+    appResizeObserver = new ResizeObserver(() => {
+      syncViewportMode()
+    })
+    appResizeObserver.observe(appEl.value)
+  }
   syncViewportMode()
 
   if (route.hash) await scrollToHash()
@@ -66,6 +89,10 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', syncViewportMode)
+  if (appResizeObserver) {
+    appResizeObserver.disconnect()
+    appResizeObserver = null
+  }
 })
 
 async function onLogout() {
@@ -75,7 +102,16 @@ async function onLogout() {
 </script>
 
 <template>
-  <div class="app">
+  <div
+    ref="appEl"
+    class="app"
+    :class="{
+      'widget-compact-980': isEmbed && responsiveWidth <= 980,
+      'widget-compact-900': isEmbed && responsiveWidth <= 900,
+      'widget-compact-640': isEmbed && responsiveWidth <= 640,
+      'widget-compact-420': isEmbed && responsiveWidth <= 420,
+    }"
+  >
     <TopBar v-if="!hideChrome" :user="auth.state.user" @logout="onLogout" />
 
     <div
