@@ -20,7 +20,7 @@ const hasGenerationError = computed(() =>
   successFlag.value === 2 || successFlag.value === 3 || !!rawGenerationError.value
 )
 const generationErrorText = computed(() => {
-  const text = rawGenerationError.value
+  const text = String(rawGenerationError.value || '').trim()
   const normalizedText = text.toLowerCase()
 
   if (normalizedText.includes('deadline expired before operation could complete.')) {
@@ -32,6 +32,14 @@ const generationErrorText = computed(() => {
     normalizedText.includes('internal error encountered.')
   ) {
     return 'Сервис временно перегружен. Попробуйте повторить операцию позже.'
+  }
+
+  if (normalizedText.includes('gemini response does not contain an image')) {
+    return 'Ошибка при генерации'
+  }
+
+  if (text) {
+    return text
   }
 
   return 'Ошибка при генерации'
