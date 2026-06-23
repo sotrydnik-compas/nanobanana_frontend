@@ -4,45 +4,32 @@ import { computed, ref } from 'vue'
 const props = defineProps({
   msg: { type: Object, required: true },
   assistantResultUrls: { type: Array, default: () => [] },
+  isLastMessage: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['imageLoaded'])
 
 const isUser = computed(() => props.msg.role === 'user')
 const isAssistant = computed(() => props.msg.role === 'assistant')
+const isBatchUserMessage = computed(() => isUser.value && props.msg?.meta?.batch === true)
 
 const successFlag = computed(() => props.msg?.meta?.successFlag)
 const resultUrl = computed(() => props.msg?.meta?.resultImageUrl || '')
-const errMsg = computed(() => props.msg?.meta?.errorMessage || '')
+const errMsg = computed(() => String(props.msg?.meta?.errorMessage || '').trim())
 const contentErrorText = computed(() => String(props.msg?.content || '').trim())
-const rawGenerationError = computed(() => contentErrorText.value || errMsg.value || '')
+const rawGenerationError = computed(() => errMsg.value || contentErrorText.value || '')
 const hasGenerationError = computed(() =>
-  successFlag.value === 2 || successFlag.value === 3 || !!rawGenerationError.value
+  successFlag.value === 2 || (!resultUrl.value && !!rawGenerationError.value)
 )
+
+function hasCyrillic(text = '') {
+  return /[А-Яа-яЁё]/.test(String(text || ''))
+}
+
 const generationErrorText = computed(() => {
-  const text = String(rawGenerationError.value || '').trim()
-  const normalizedText = text.toLowerCase()
-
-  if (normalizedText.includes('deadline expired before operation could complete.')) {
-    return 'Сервис временно недоступен: превышено время ожидания ответа'
-  }
-
-  if (
-    normalizedText.includes('this model is currently experiencing high demand. spikes in demand are usually temporary. please try again later.') ||
-    normalizedText.includes('internal error encountered.')
-  ) {
-    return 'Сервис временно перегружен. Попробуйте повторить операцию позже.'
-  }
-
-  if (normalizedText.includes('gemini response does not contain an image')) {
-    return 'Ошибка при генерации'
-  }
-
-  if (text) {
-    return text
-  }
-
-  return 'Ошибка при генерации'
+  const text = rawGenerationError.value
+  if (!text) return 'Ошибка генерации'
+  return hasCyrillic(text) ? text : 'Ошибка генерации'
 })
 
 function normalizeCompareUrl(url) {
@@ -63,6 +50,25 @@ const userReferenceUrls = computed(() => {
   const seen = new Set()
   const urls = []
   const raw = []
+
+  // For batch user-messages, prefer showing the current item image being processed.
+  if (isBatchUserMessage.value) {
+    if (typeof meta.image_url === 'string') raw.push(meta.image_url)
+    if (typeof meta.imageUrl === 'string') raw.push(meta.imageUrl)
+
+    const preferred = raw
+      .map((item) => String(item || '').trim())
+      .filter(Boolean)
+
+    if (preferred.length) {
+      for (const url of preferred) {
+        if (seen.has(url)) continue
+        seen.add(url)
+        urls.push(url)
+      }
+      return urls
+    }
+  }
 
   if (Array.isArray(meta.imageUrls)) raw.push(...meta.imageUrls)
   if (Array.isArray(meta.image_urls)) raw.push(...meta.image_urls)
@@ -133,8 +139,12 @@ function closeModal() {
   modalImageUrl.value = ''
 }
 
-function onImageLoad() {
-  emit('imageLoaded')
+function onImageLoad(kind) {
+  emit('imageLoaded', {
+    kind,
+    isLastMessage: props.isLastMessage,
+    messageId: props.msg?.id || '',
+  })
 }
 
 async function copyLink(url = resultUrl.value) {
@@ -239,7 +249,7 @@ async function downloadImage(url = resultUrl.value, fallbackName = 'generated-im
           loading="lazy"
           decoding="async"
           @click="openModal(url)"
-          @load="onImageLoad"
+          @load="onImageLoad('user-ref')"
         />
       </div>
     </div>
@@ -258,7 +268,7 @@ async function downloadImage(url = resultUrl.value, fallbackName = 'generated-im
         loading="lazy"
         decoding="async"
         @click="openModal(resultUrl)"
-        @load="onImageLoad"
+        @load="onImageLoad('assistant-result')"
       />
 
       <div class="actions">

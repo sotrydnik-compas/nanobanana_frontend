@@ -6,7 +6,9 @@ html, body, #app {
   box-sizing: border-box;
 }
 
-:root{
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
   --bg: #f3f4f6;
   --text: #111827;
   --muted: #6b7280;
@@ -47,47 +49,46 @@ html, body, #app {
   --theadText: #374151;
 }
 
-@media (prefers-color-scheme: dark){
-  :root[data-theme="dark"]{
-    --bg: #0a0a0a;
-    --text: #f1f1f1;
-    --muted: #9a9a9a;
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --text: #f1f1f1;
+  --muted: #9a9a9a;
 
-    --border: #2a2a2a;
-    --card: #111111;
-    --card2: #181818;
-    --card2Hover: #222222;
+  --border: #2a2a2a;
+  --card: #111111;
+  --card2: #181818;
+  --card2Hover: #222222;
 
-    --primary: #f3f4f6;
-    --primaryText: #111111;
+  --primary: #f3f4f6;
+  --primaryText: #111111;
 
-    --dangerBg: #1a1010;
-    --dangerBorder: #4a2a2a;
-    --dangerText: #f0b4b4;
+  --dangerBg: #1a1010;
+  --dangerBorder: #4a2a2a;
+  --dangerText: #f0b4b4;
 
-    --successBg: #101612;
-    --successBorder: #2e4a36;
-    --successText: #b8d8c0;
+  --successBg: #101612;
+  --successBorder: #2e4a36;
+  --successText: #b8d8c0;
 
-    --statusPendingBg: #1a1a1a;
-    --statusPendingBorder: #3a3a3a;
-    --statusPendingText: #d6d6d6;
+  --statusPendingBg: #1a1a1a;
+  --statusPendingBorder: #3a3a3a;
+  --statusPendingText: #d6d6d6;
 
-    --statusSucceededBg: #101612;
-    --statusSucceededBorder: #2e4a36;
-    --statusSucceededText: #b8d8c0;
+  --statusSucceededBg: #101612;
+  --statusSucceededBorder: #2e4a36;
+  --statusSucceededText: #b8d8c0;
 
-    --statusFailedBg: #1a1010;
-    --statusFailedBorder: #4a2a2a;
-    --statusFailedText: #f0b4b4;
+  --statusFailedBg: #1a1010;
+  --statusFailedBorder: #4a2a2a;
+  --statusFailedText: #f0b4b4;
 
-    --statusCanceledBg: #151515;
-    --statusCanceledBorder: #2c2c2c;
-    --statusCanceledText: #b0b0b0;
+  --statusCanceledBg: #151515;
+  --statusCanceledBorder: #2c2c2c;
+  --statusCanceledText: #b0b0b0;
 
-    --theadBg: #181818;
-    --theadText: #e6e6e6;
-  }
+  --theadBg: #181818;
+  --theadText: #e6e6e6;
 }
 
 :root {
@@ -182,10 +183,4 @@ a:hover { text-decoration: underline; }
     align-items: flex-start;
     gap: 8px;
   }
-}
-
-.widget-compact-420 .auth-links {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
 }

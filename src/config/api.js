@@ -39,8 +39,9 @@ export const endpoints = {
     generate: '/api/v1/ai/generate-pro',
     task: (id) => `/api/v1/ai/tasks/${encodeURIComponent(id)}`,
 
-    generateBatch: '/api/v1/ai/generate-batch',
+    generateBatchInit: '/api/v1/ai/generate-batch/init',
     batch: (id) => `/api/v1/ai/batches/${id}`,
+    batchChunks: (id) => `/api/v1/ai/batches/${encodeURIComponent(id)}/chunks`,
     cancelBatch: (id) => `/api/v1/ai/batches/${id}/cancel`,
 
     samples: '/api/v1/ai/samples',

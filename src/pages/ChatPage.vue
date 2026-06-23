@@ -1,4 +1,5 @@
 <script setup>
+import JSZip from 'jszip'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from '../stores/auth'
@@ -28,6 +29,7 @@ const inFlightKind = ref('')
 const currentTaskId = ref('')
 const currentBatchId = ref('')
 const pollTimer = ref(null)
+const batchUploading = ref(false)
 
 const errorText = ref('')
 const infoText = ref('')
@@ -124,6 +126,7 @@ function resetCurrentInFlightState() {
   inFlightKind.value = ''
   currentTaskId.value = ''
   currentBatchId.value = ''
+  batchUploading.value = false
 }
 
 function createDefaultSettings() {
@@ -275,6 +278,9 @@ const downloadableImageUrls = computed(() => {
   return urls
 })
 
+const BATCH_CHUNK_MAX_FILES = 10
+const BATCH_CHUNK_MAX_BYTES = 100 * 1024 * 1024
+
 function extFromContentType(contentType = '') {
   if (contentType.includes('png')) return 'png'
   if (contentType.includes('webp')) return 'webp'
@@ -293,6 +299,38 @@ function buildDownloadName(url, fallback = 'image', contentType = '') {
 
   const ext = extFromContentType(contentType)
   return ext ? `${fallback}.${ext}` : fallback
+}
+
+function sanitizeArchiveFileName(name, fallback = 'image') {
+  const raw = String(name || '').trim() || fallback
+  return raw.replace(/[\\/:*?"<>|]+/g, '-')
+}
+
+function buildArchiveEntryName(filename, index, fallbackStem = 'image') {
+  const safe = sanitizeArchiveFileName(filename, fallbackStem)
+  const dotIdx = safe.lastIndexOf('.')
+
+  if (dotIdx <= 0) {
+    return `${fallbackStem}-${String(index + 1).padStart(2, '0')}-${safe}`
+  }
+
+  const stem = safe.slice(0, dotIdx)
+  const ext = safe.slice(dotIdx)
+  return `${fallbackStem}-${String(index + 1).padStart(2, '0')}-${stem}${ext}`
+}
+
+function triggerBlobDownload(blob, filename) {
+  const safeName = sanitizeArchiveFileName(filename, 'download')
+  const objectUrl = URL.createObjectURL(blob)
+
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = safeName
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
 }
 
 function openUrlInNewTab(url) {
@@ -314,23 +352,34 @@ async function downloadUrl(url, fallbackName = 'image') {
     if (!resp.ok) throw new Error('download_failed')
 
     const blob = await resp.blob()
-    const objectUrl = URL.createObjectURL(blob)
-
-    const a = document.createElement('a')
-    a.href = objectUrl
-    a.download = buildDownloadName(
-      url,
-      fallbackName,
-      resp.headers.get('content-type') || ''
+    triggerBlobDownload(
+      blob,
+      buildDownloadName(
+        url,
+        fallbackName,
+        resp.headers.get('content-type') || ''
+      )
     )
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
   } catch {
     openUrlInNewTab(url)
   }
+}
+
+async function fetchDownloadableAsset(url, fallbackName = 'image') {
+  const resp = await fetch(url, { mode: 'cors' })
+  if (!resp.ok) throw new Error('download_failed')
+
+  const blob = await resp.blob()
+  const filename = sanitizeArchiveFileName(
+    buildDownloadName(
+      url,
+      fallbackName,
+      resp.headers.get('content-type') || ''
+    ),
+    fallbackName
+  )
+
+  return { blob, filename }
 }
 
 async function onDownloadAll() {
@@ -340,21 +389,122 @@ async function onDownloadAll() {
   errorText.value = ''
   infoText.value = ''
 
+  const zip = new JSZip()
+  let okCount = 0
+  let failCount = 0
+
   for (let i = 0; i < urls.length; i++) {
     const fileName = `chat-${currentChatId.value || 'images'}-${String(i + 1).padStart(2, '0')}`
-    await downloadUrl(urls[i], fileName)
 
-    if (i < urls.length - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 120))
+    try {
+      const asset = await fetchDownloadableAsset(urls[i], fileName)
+      zip.file(buildArchiveEntryName(asset.filename, i, currentChatId.value || 'chat'), asset.blob)
+      okCount++
+    } catch {
+      failCount++
     }
   }
 
-  infoText.value = `Скачивание запущено: ${urls.length}`
+  if (!okCount) {
+    errorText.value = 'Не удалось подготовить архив для скачивания.'
+    return
+  }
+
+  const archiveBlob = await zip.generateAsync({ type: 'blob' })
+  const archiveName = `chat-${currentChatId.value || 'images'}-${okCount}-images.zip`
+  triggerBlobDownload(archiveBlob, archiveName)
+
+  infoText.value = failCount
+    ? `Архив подготовлен: ${okCount} файлов, пропущено ${failCount}`
+    : `Архив подготовлен: ${okCount} файлов`
 }
 
 function closeDrawers() {
   showChatsDrawer.value = false
   showSettingsDrawer.value = false
+}
+
+function getBatchItemCount() {
+  return (refsState.urls?.length || 0) + (refsState.files?.length || 0)
+}
+
+function buildBatchChunkPlan() {
+  const items = [
+    ...(refsState.urls || []).map((url) => ({ kind: 'url', value: url, bytes: 0 })),
+    ...(refsState.files || []).map((file) => ({ kind: 'file', value: file, bytes: Number(file?.size || 0) })),
+  ]
+
+  const chunks = []
+  let current = []
+  let currentBytes = 0
+
+  const pushCurrent = () => {
+    if (!current.length) return
+
+    chunks.push({
+      imageUrls: current.filter((item) => item.kind === 'url').map((item) => item.value),
+      files: current.filter((item) => item.kind === 'file').map((item) => item.value),
+      itemCount: current.length,
+      totalBytes: currentBytes,
+    })
+
+    current = []
+    currentBytes = 0
+  }
+
+  for (const item of items) {
+    const itemBytes = Number(item.bytes || 0)
+    const nextCount = current.length + 1
+    const nextBytes = currentBytes + itemBytes
+
+    if (
+      current.length &&
+      (nextCount > BATCH_CHUNK_MAX_FILES || nextBytes > BATCH_CHUNK_MAX_BYTES)
+    ) {
+      pushCurrent()
+    }
+
+    current.push(item)
+    currentBytes += itemBytes
+  }
+
+  pushCurrent()
+  return chunks
+}
+
+function fnv1aHash(input) {
+  let hash = 0x811c9dc5
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0')
+}
+
+async function buildChunkHash(batchId, chunk, index) {
+  const payload = JSON.stringify({
+    batchId: String(batchId || ''),
+    index,
+    imageUrls: (chunk.imageUrls || []).map((url) => String(url || '').trim()),
+    files: (chunk.files || []).map((file) => ({
+      name: String(file?.name || ''),
+      size: Number(file?.size || 0),
+      type: String(file?.type || ''),
+      lastModified: Number(file?.lastModified || 0),
+    })),
+  })
+
+  try {
+    if (typeof crypto !== 'undefined' && crypto?.subtle?.digest) {
+      const data = new TextEncoder().encode(payload)
+      const digest = await crypto.subtle.digest('SHA-256', data)
+      return Array.from(new Uint8Array(digest))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+    }
+  } catch {}
+
+  return fnv1aHash(payload)
 }
 
 function stopPolling() {
@@ -448,7 +598,7 @@ async function resumeInFlightForChat(chatId) {
       const r = await fetchTaskOnce(entry.taskId)
       const flag = r?.data?.successFlag ?? 0
 
-      if (flag === 1 || flag === 2 || flag === 3) {
+      if (flag === 1 || flag === 2) {
         clearInFlightEntry(chatId)
         resetCurrentInFlightState()
         await loadMessages(chatId)
@@ -585,7 +735,7 @@ function validateBeforeSend(userPrompt) {
     }
   }
 
-  const totalRefs = (refsState.urls?.length || 0) + (refsState.files?.length || 0)
+  const totalRefs = getBatchItemCount()
   const maxRefs = settings.mode === 'batch' ? 100 : 7
 
   if (totalRefs > maxRefs) {
@@ -621,7 +771,7 @@ async function startTaskPolling(taskId, chatId) {
   try {
     const r = await fetchTaskOnce(taskId)
     const flag = r?.data?.successFlag ?? 0
-    if (flag === 1 || flag === 2 || flag === 3) {
+    if (flag === 1 || flag === 2) {
       clearInFlightEntry(chatId)
       resetCurrentInFlightState()
       await loadMessages(chatId)
@@ -634,7 +784,7 @@ async function startTaskPolling(taskId, chatId) {
     try {
       const r = await fetchTaskOnce(taskId)
       const flag = r?.data?.successFlag ?? 0
-      if (flag === 1 || flag === 2 || flag === 3) {
+      if (flag === 1 || flag === 2) {
         stopPolling()
         clearInFlightEntry(chatId)
         resetCurrentInFlightState()
@@ -726,16 +876,22 @@ async function onSend(userPrompt) {
   try {
     if (settings.mode === 'batch') {
       inFlightKind.value = 'batch'
+      batchUploading.value = true
 
-      const r = await aiApi.generateBatch({
+      const expectedCount = getBatchItemCount()
+      const chunks = buildBatchChunkPlan()
+      if (!chunks.length) {
+        throw new Error('Не удалось подготовить чанки для пакетной загрузки.')
+      }
+
+      const r = await aiApi.generateBatchInit({
         prompt: promptToSend,
+        expectedCount,
         resolution: settings.resolution,
         aspectRatio: getRequestAspectRatio(),
         googleSearch: settings.googleSearch,
         outputFormat: settings.outputFormat,
         chatId: currentChatId.value || null,
-        imageUrls: refsState.urls,
-        files: refsState.files,
         referenceUrls: refsState.referenceUrls,
         referenceFiles: refsState.referenceFiles,
       })
@@ -746,6 +902,42 @@ async function onSend(userPrompt) {
         currentChatId.value = r.chat_id
         currentChatStatus.value = 'active'
       }
+
+      let uploadComplete = false
+      let lastChunkResponse = null
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i]
+        const chunkHash = await buildChunkHash(r.batch_id, chunk, i)
+        const isLastChunk = i === chunks.length - 1
+
+        infoText.value = `Загрузка пакета: чанк ${i + 1}/${chunks.length}`
+
+        lastChunkResponse = await aiApi.uploadBatchChunk(r.batch_id, {
+          chunkHash,
+          isLastChunk,
+          imageUrls: chunk.imageUrls,
+          files: chunk.files,
+        })
+
+        const receivedCount = Number(lastChunkResponse?.received_count ?? 0)
+        const expectedFromChunk = Number(lastChunkResponse?.expected_count ?? expectedCount)
+        infoText.value = `Загрузка пакета: ${receivedCount}/${expectedFromChunk}`
+
+        if (lastChunkResponse?.upload_complete === true) {
+          uploadComplete = true
+        }
+      }
+
+      if (!uploadComplete) {
+        throw new Error(
+          lastChunkResponse?.expected_count && lastChunkResponse?.received_count != null
+            ? `Пакет не завершён: загружено ${lastChunkResponse.received_count}/${lastChunkResponse.expected_count}`
+            : 'Пакет не завершён: последний чанк не подтвердил завершение загрузки.'
+        )
+      }
+
+      batchUploading.value = false
 
       if (currentChatId.value && r.batch_id) {
         setInFlightEntry(currentChatId.value, {
@@ -797,6 +989,8 @@ async function onSend(userPrompt) {
 
     await startTaskPolling(r.taskId, currentChatId.value)
   } catch (e) {
+    batchUploading.value = false
+
     if (standardFilesSnapshot) {
       refsState.files = standardFilesSnapshot
     }
@@ -891,7 +1085,7 @@ onBeforeUnmount(() => {
           />
 
           <button
-            v-if="taskInFlight && inFlightKind==='batch'"
+            v-if="taskInFlight && inFlightKind==='batch' && !batchUploading"
             class="btn danger"
             type="button"
             @click="onCancelBatch"
@@ -1081,27 +1275,6 @@ onBeforeUnmount(() => {
   .left, .right { display: none; }
 }
 
-:global(.widget-compact-980) .mobile-edge-actions {
-  position: fixed;
-  top: 50%;
-  left: -12px;
-  right: -12px;
-  z-index: 70;
-  display: flex;
-  justify-content: space-between;
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
-:global(.widget-compact-980) .edge-btn {
-  pointer-events: auto;
-}
-
-:global(.widget-compact-980) .layout { padding: 10px; }
-:global(.widget-compact-980) .desktop-only { display: none; }
-:global(.widget-compact-980) .left,
-:global(.widget-compact-980) .right { display: none; }
-
 /* drawer */
 .overlay {
   position: fixed;
@@ -1146,13 +1319,5 @@ onBeforeUnmount(() => {
   .chat-tools .btn {
     width: 100%;
   }
-}
-
-:global(.widget-compact-980) .chat-tools {
-  justify-content: stretch;
-}
-
-:global(.widget-compact-980) .chat-tools .btn {
-  width: 100%;
 }
 </style>

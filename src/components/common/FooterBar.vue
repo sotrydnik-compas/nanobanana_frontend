@@ -1,27 +1,10 @@
 <script setup>
-import { onMounted, ref } from 'vue'
-
-const LS_THEME = 'nb_theme'
-const theme = ref('light')
+import { computed } from 'vue'
+import { theme } from '../../stores/theme'
 
 // public/offer.docx
 const offerHref = `${import.meta.env.BASE_URL}offer.docx`
-
-function applyTheme(t) {
-  theme.value = t
-  try { localStorage.setItem(LS_THEME, t) } catch {}
-  document.documentElement.setAttribute('data-theme', t)
-}
-
-function toggleTheme() {
-  applyTheme(theme.value === 'dark' ? 'light' : 'dark')
-}
-
-onMounted(() => {
-  let t = 'light'
-  try { t = localStorage.getItem(LS_THEME) || 'light' } catch {}
-  applyTheme(t)
-})
+const themeLabel = computed(() => (theme.state.theme === 'dark' ? '🌙 Dark' : '☀️ Light'))
 </script>
 
 <template>
@@ -50,8 +33,8 @@ onMounted(() => {
     <div class="right">
       <!-- на desktop рядом с темой -->
       <a class="btnlink" :href="offerHref" download>Договор оферты</a>
-      <button class="toggle" type="button" @click="toggleTheme">
-        {{ theme === 'dark' ? '🌙 Dark' : '☀️ Light' }}
+      <button class="toggle" type="button" @click="theme.toggle()">
+        {{ themeLabel }}
       </button>
     </div>
   </footer>

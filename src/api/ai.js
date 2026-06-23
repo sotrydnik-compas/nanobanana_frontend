@@ -42,14 +42,14 @@ export const aiApi = {
     return apiJson(`${base}${endpoints.ai.generate}`, { method: 'POST', body: fd })
   },
 
-  generateBatch: (payload) => {
+  generateBatchInit: (payload) => {
     // payload: {
-    //   prompt, resolution, aspectRatio, googleSearch, outputFormat, chatId?,
-    //   imageUrls[], files[],
+    //   prompt, expectedCount, resolution, aspectRatio, googleSearch, outputFormat, chatId?,
     //   referenceUrls[], referenceFiles[]
     // }
     const fd = new FormData()
     fd.append('prompt', payload.prompt)
+    fd.append('expected_count', String(payload.expectedCount || 0))
     fd.append('resolution', payload.resolution || '1K')
     fd.append('aspectRatio', payload.aspectRatio || '1:1')
     fd.append('googleSearch', String(payload.googleSearch ?? true))
@@ -57,13 +57,22 @@ export const aiApi = {
 
     if (payload.chatId) fd.append('chat_id', payload.chatId)
 
-    for (const u of (payload.imageUrls || [])) fd.append('image_urls', u)
-    for (const f of (payload.files || [])) fd.append('images', f, f.name)
-
     for (const u of (payload.referenceUrls || [])) fd.append('reference_urls', u)
     for (const f of (payload.referenceFiles || [])) fd.append('reference_images', f, f.name)
 
-    return apiJson(`${base}${endpoints.ai.generateBatch}`, { method: 'POST', body: fd })
+    return apiJson(`${base}${endpoints.ai.generateBatchInit}`, { method: 'POST', body: fd })
+  },
+
+  uploadBatchChunk: (batchId, payload) => {
+    // payload: { chunkHash, isLastChunk, imageUrls[], files[] }
+    const fd = new FormData()
+    fd.append('chunkHash', payload.chunkHash)
+    fd.append('isLastChunk', String(!!payload.isLastChunk))
+
+    for (const u of (payload.imageUrls || [])) fd.append('image_urls', u)
+    for (const f of (payload.files || [])) fd.append('images', f, f.name)
+
+    return apiJson(`${base}${endpoints.ai.batchChunks(batchId)}`, { method: 'POST', body: fd })
   },
 
   getBatch: (batchId) =>
