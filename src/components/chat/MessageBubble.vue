@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps({
   msg: { type: Object, required: true },
@@ -126,6 +126,28 @@ const userRefsLayout = computed(() => {
 const modalOpen = ref(false)
 const modalImageUrl = ref('')
 const copied = ref(false)
+const assistantImageUnavailable = ref(false)
+const brokenUserRefUrls = ref(new Set())
+
+watch(
+  resultUrl,
+  () => {
+    assistantImageUnavailable.value = false
+  },
+  { immediate: true }
+)
+
+watch(
+  visibleUserReferenceUrls,
+  (urls) => {
+    const next = new Set()
+    for (const url of urls || []) {
+      if (brokenUserRefUrls.value.has(url)) next.add(url)
+    }
+    brokenUserRefUrls.value = next
+  },
+  { immediate: true }
+)
 
 function openModal(url = resultUrl.value) {
   const target = String(url || '').trim()
@@ -137,6 +159,20 @@ function openModal(url = resultUrl.value) {
 function closeModal() {
   modalOpen.value = false
   modalImageUrl.value = ''
+}
+
+function onAssistantImageError() {
+  assistantImageUnavailable.value = true
+}
+
+function onUserRefError(url) {
+  const next = new Set(brokenUserRefUrls.value)
+  next.add(String(url || '').trim())
+  brokenUserRefUrls.value = next
+}
+
+function isBrokenUserRef(url) {
+  return brokenUserRefUrls.value.has(String(url || '').trim())
 }
 
 function onImageLoad(kind) {
@@ -240,17 +276,26 @@ async function downloadImage(url = resultUrl.value, fallbackName = 'generated-im
         :class="{ single: visibleUserReferenceUrls.length === 1 }"
         :style="userRefsLayout"
       >
-        <img
-          v-for="(url, idx) in visibleUserReferenceUrls"
-          :key="`${url}-${idx}`"
-          class="user-ref-img"
-          :src="url"
-          alt="reference"
-          loading="lazy"
-          decoding="async"
-          @click="openModal(url)"
-          @load="onImageLoad('user-ref')"
-        />
+        <template v-for="(url, idx) in visibleUserReferenceUrls" :key="`${url}-${idx}`">
+          <img
+            v-if="!isBrokenUserRef(url)"
+            class="user-ref-img"
+            :src="url"
+            alt="reference"
+            loading="lazy"
+            decoding="async"
+            @click="openModal(url)"
+            @load="onImageLoad('user-ref')"
+            @error="onUserRefError(url)"
+          />
+
+          <div
+            v-else
+            class="user-ref-fallback"
+          >
+            Референс недоступен
+          </div>
+        </template>
       </div>
     </div>
   </template>
@@ -260,7 +305,7 @@ async function downloadImage(url = resultUrl.value, fallbackName = 'generated-im
       {{ generationErrorText }}
     </div>
 
-    <template v-else-if="resultUrl">
+    <template v-else-if="resultUrl && !assistantImageUnavailable">
       <img
         class="img"
         :src="resultUrl"
@@ -269,6 +314,7 @@ async function downloadImage(url = resultUrl.value, fallbackName = 'generated-im
         decoding="async"
         @click="openModal(resultUrl)"
         @load="onImageLoad('assistant-result')"
+        @error="onAssistantImageError"
       />
 
       <div class="actions">
@@ -277,6 +323,10 @@ async function downloadImage(url = resultUrl.value, fallbackName = 'generated-im
         <span v-if="copied" class="copied">Ссылка скопирована</span>
       </div>
     </template>
+
+    <div v-else-if="resultUrl" class="info-note">
+      Изображение больше недоступно. Срок хранения данных истек.
+    </div>
 
     <div v-else class="muted">…</div>
   </div>
@@ -392,9 +442,35 @@ async function downloadImage(url = resultUrl.value, fallbackName = 'generated-im
   color: var(--dangerText);
 }
 
+.info-note {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
 .muted {
   font-size: 12px;
   color: var(--muted);
+}
+
+.user-ref-fallback {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card2);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .modal {

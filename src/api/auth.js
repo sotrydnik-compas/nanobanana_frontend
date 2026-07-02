@@ -1,4 +1,5 @@
 import { endpoints } from '../config/api'
+import { normalizeClientError } from '../utils/errors'
 
 function formBody(data) {
   const p = new URLSearchParams()
@@ -10,14 +11,19 @@ function formBody(data) {
 }
 
 async function postForm(url, data, extraHeaders = {}) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-      ...extraHeaders,
-    },
-    body: formBody(data),
-  })
+  let res
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        ...extraHeaders,
+      },
+      body: formBody(data),
+    })
+  } catch (error) {
+    throw normalizeClientError(error)
+  }
 
   const txt = await res.text().catch(() => '')
   let json = null
@@ -35,9 +41,14 @@ async function postForm(url, data, extraHeaders = {}) {
 }
 
 async function getJson(url, accessToken) {
-  const res = await fetch(url, {
-    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-  })
+  let res
+  try {
+    res = await fetch(url, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    })
+  } catch (error) {
+    throw normalizeClientError(error)
+  }
   const txt = await res.text().catch(() => '')
   let json = null
   try { json = txt ? JSON.parse(txt) : null } catch {}

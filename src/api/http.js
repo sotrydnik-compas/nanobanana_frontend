@@ -1,4 +1,5 @@
 import { auth } from '../stores/auth'
+import { normalizeClientError } from '../utils/errors'
 
 async function readError(res) {
   const txt = await res.text().catch(() => '')
@@ -17,7 +18,12 @@ export async function apiFetch(url, opts = {}, { retry401 = true } = {}) {
   const headers = new Headers(opts.headers || {})
   if (auth.state.accessToken) headers.set('Authorization', `Bearer ${auth.state.accessToken}`)
 
-  const res = await fetch(url, { ...opts, headers })
+  let res
+  try {
+    res = await fetch(url, { ...opts, headers })
+  } catch (error) {
+    throw normalizeClientError(error)
+  }
   if (res.status !== 401) return res
 
   if (!retry401) return res
@@ -28,7 +34,11 @@ export async function apiFetch(url, opts = {}, { retry401 = true } = {}) {
   const headers2 = new Headers(opts.headers || {})
   if (auth.state.accessToken) headers2.set('Authorization', `Bearer ${auth.state.accessToken}`)
 
-  return fetch(url, { ...opts, headers: headers2 })
+  try {
+    return await fetch(url, { ...opts, headers: headers2 })
+  } catch (error) {
+    throw normalizeClientError(error)
+  }
 }
 
 export async function apiJson(url, opts = {}, meta = {}) {
